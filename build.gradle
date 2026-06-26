@@ -1,0 +1,79 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
+}
+
+version = "${mod_version}"
+group = "${mod_group}"
+
+base {
+    archivesName = "${mod_id}-${minecraft_version}"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    // Keep the pure-logic core (com.nightfall.riftautotune.core.*) free of Minecraft
+    // imports so it can be unit-tested without launching the game.
+    withSourcesJar()
+}
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+
+    copyIdeResources = true
+
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'mixin.env.remapRefMap', 'true'
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+repositories {
+    maven { url = "https://maven.minecraftforge.net/" }
+    // Distant Horizons API (optional, compile-only). Uncomment to compile against the real API
+    // instead of the reflection fallback. Then add the dependency below.
+    // maven { url = "https://gitlab.com/api/v4/projects/distant-horizons-team%2Fdistant-horizons-api/packages/maven" }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // OPTIONAL: compile against the official Distant Horizons API (DhApi). The mod still works
+    // without it because DistantHorizonsAdapter falls back to reflection at runtime.
+    // compileOnly "com.seibel.distanthorizons:distanthorizons-api:<version>"
+
+    // Unit tests for the pure-logic core. These never start Minecraft.
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging { events "passed", "skipped", "failed" }
+}
+
+tasks.named('jar', Jar) {
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : mod_name,
+                'Implementation-Version'  : project.version,
+                'Implementation-Vendor'   : mod_authors
+        ])
+    }
+}

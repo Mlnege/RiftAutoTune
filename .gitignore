@@ -1,0 +1,28 @@
+# Gradle / build
+.gradle/
+build/
+out/
+run/
+bin/
+
+# ForgeGradle
+.forge/
+*.launch
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+.eclipse/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# RiftAutoTune config backups created at runtime
+*.riftbak

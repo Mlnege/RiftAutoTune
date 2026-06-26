@@ -1,0 +1,21 @@
+{
+    "riftautotune.hud.tier": "Tier: %s",
+    "riftautotune.hud.fps": "FPS: %s avg / %s 1%% / %s 0.1%%",
+    "riftautotune.hud.preset": "Preset: %s",
+    "riftautotune.hud.mode": "Mode: %s",
+
+    "riftautotune.toast.title": "RiftAutoTune",
+    "riftautotune.toast.benchmarking": "Benchmarking hardware...",
+    "riftautotune.toast.applied": "Applied %s preset (%s FPS)",
+    "riftautotune.toast.nochange": "Hardware unchanged - using saved profile",
+
+    "riftautotune.command.benchmark": "Running benchmark...",
+    "riftautotune.command.apply": "Applying tuned settings...",
+    "riftautotune.command.reset": "Cleared saved profile. Re-benchmarking on next world join.",
+    "riftautotune.command.status.header": "RiftAutoTune status",
+    "riftautotune.command.profile.set": "Forced profile: %s",
+
+    "riftautotune.config.title": "RiftAutoTune Configuration",
+
+    "key.categories.riftautotune": "RiftAutoTune"
+}
