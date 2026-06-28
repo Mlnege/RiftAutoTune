@@ -50,6 +50,17 @@ public final class FrameTimeMonitor {
         return out;
     }
 
+    /** Mean frame time (ms) of the slowest 1% of frames in the window (the stutter floor), or 0. */
+    public double onePctLowMs() {
+        if (filled == 0) return 0;
+        double[] sorted = snapshot();
+        java.util.Arrays.sort(sorted); // ascending: slowest frames are at the tail
+        int count = Math.max(1, (int) Math.ceil(filled * 0.01));
+        double sum = 0;
+        for (int i = filled - count; i < filled; i++) sum += sorted[i];
+        return sum / count;
+    }
+
     /** Mean frame time (ms) over the current window, or 0 if empty. */
     public double meanMs() {
         if (filled == 0) return 0;

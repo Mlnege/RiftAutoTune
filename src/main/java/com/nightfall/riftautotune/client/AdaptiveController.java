@@ -7,6 +7,7 @@ import com.nightfall.riftautotune.core.GraphicsSettings;
 import com.nightfall.riftautotune.core.HardwareProfile;
 import com.nightfall.riftautotune.core.Knob;
 import com.nightfall.riftautotune.core.TuningContext;
+import com.nightfall.riftautotune.util.CpuLoad;
 import com.nightfall.riftautotune.util.RiftLog;
 
 import java.util.function.Consumer;
@@ -84,21 +85,32 @@ public final class AdaptiveController {
             changesThisMinute = 0;
         }
 
-        double avgFps = 1000.0 / monitor.meanMs();
+        double meanMs = monitor.meanMs();
+        double avgFps = meanMs > 0 ? 1000.0 / meanMs : 0;
+        double onePctMs = monitor.onePctLowMs();
+        double onePctFps = onePctMs > 0 ? 1000.0 / onePctMs : avgFps;
+
         int low = RiftConfig.TARGET_FPS_MIN.get();
         int high = Math.min(RiftConfig.TARGET_FPS_MAX.get(), hardware.refreshRate);
+        int onePctFloor = Math.min(RiftConfig.ONE_PCT_FLOOR.get(), low);
 
-        if (avgFps < low) {
+        // Too slow if the AVERAGE dips below the band OR the 1%-low (stutter floor) is breached.
+        // The old loop only watched the average, so a 59-avg / 35-1%-low session with maxed
+        // shaders never got corrected - this is the main "options too high for the frame" fix.
+        boolean tooSlow = avgFps < low || onePctFps < onePctFloor;
+        boolean roomToSpare = avgFps > high && onePctFps > onePctFloor + 5;
+
+        if (tooSlow) {
             aboveSince = 0L;
             if (belowSince == 0L) belowSince = now;
             if (now - belowSince >= DOWN_HOLD_NANOS && canChange(now)) {
-                step(current, apply, true, avgFps);
+                step(current, apply, true, avgFps, onePctFps);
             }
-        } else if (avgFps > high) {
+        } else if (roomToSpare) {
             belowSince = 0L;
             if (aboveSince == 0L) aboveSince = now;
             if (now - aboveSince >= UP_HOLD_NANOS && canChange(now)) {
-                step(current, apply, false, avgFps);
+                step(current, apply, false, avgFps, onePctFps);
             }
         } else {
             belowSince = aboveSince = 0L; // in band, all good
@@ -110,8 +122,9 @@ public final class AdaptiveController {
     }
 
     /** Apply a single best rung change (down = shed quality, up = add quality). */
-    private void step(GraphicsSettings current, Consumer<GraphicsSettings> apply, boolean down, double measuredFps) {
-        CostModel cm = costModelFor(current, measuredFps);
+    private void step(GraphicsSettings current, Consumer<GraphicsSettings> apply,
+                      boolean down, double measuredFps, double onePctFps) {
+        CostModel cm = costModelFor(current, measuredFps, onePctFps);
         Knob best = null;
         double bestRatio = -1;
         double beforeFt = cm.predictFrameTimeMs(current);
@@ -149,9 +162,12 @@ public final class AdaptiveController {
         apply.accept(next);
     }
 
-    private CostModel costModelFor(GraphicsSettings current, double measuredFps) {
+    private CostModel costModelFor(GraphicsSettings current, double measuredFps, double onePctFps) {
+        double cpu = CpuLoad.system();
+        // gpuBound=true here; cpuBound() then keys purely off the live CPU reading so the cost
+        // model sheds CPU-heavy knobs (sim distance, DH CPU load) first when the CPU is the wall.
         BenchmarkResult synthetic = new BenchmarkResult(
-                measuredFps, measuredFps * 0.9, measuredFps * 0.8, 0.9, true, current, null);
+                measuredFps, onePctFps, onePctFps * 0.85, 0.9, true, current, null, cpu);
         TuningContext ctx = new TuningContext(hardware, synthetic,
                 RiftConfig.TARGET_FPS_MIN.get(), RiftConfig.TARGET_FPS_MAX.get(),
                 RiftConfig.ONE_PCT_FLOOR.get(), RiftConfig.QUALITY_BIAS.get(),

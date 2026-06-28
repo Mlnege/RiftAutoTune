@@ -70,4 +70,23 @@ class AutoTuneOptimizerTest {
         GraphicsSettings s = AutoTuneOptimizer.optimize(ctx);
         assertTrue(s != null, "optimizer must always return a settings object");
     }
+
+    @Test
+    @DisplayName("Heavy shader at sub-band FPS sheds shader quality even on strong hardware")
+    void heavyShaderShedsOnStrongHardware() {
+        // Strong GPU (EXTREME seed) but the heavy pack measured only 55 avg / 40 1%-low with shaders
+        // maxed. The cost model is anchored on that real measurement, so the optimizer must pull
+        // shader quality DOWN to recover the band - not keep it maxed because "the GPU is fast".
+        GraphicsSettings maxed = QualityLadder.presetFor(HardwareTier.EXTREME);
+        BenchmarkResult heavy = new BenchmarkResult(55, 40, 33, 0.85, true, maxed, null);
+        TuningContext ctx = new TuningContext(TestData.hw(16384, 16, 32768, 2560, 1440, 144),
+                heavy, 60, 100, 50, 0.5, true, false, false); // DH off, like the reported profile
+        GraphicsSettings tuned = AutoTuneOptimizer.optimize(ctx);
+        CostModel cm = new CostModel(ctx);
+        assertTrue(cm.predictFps(tuned) >= ctx.effectiveLow - 0.6,
+                "tuned fps " + cm.predictFps(tuned) + " must reach the band floor " + ctx.effectiveLow);
+        assertTrue(tuned.get(Knob.SHADER_SHADOW_RES) < maxed.get(Knob.SHADER_SHADOW_RES)
+                        || tuned.get(Knob.SHADERS) == 0,
+                "expected shadow-map res lowered (or shaders off); got " + tuned);
+    }
 }

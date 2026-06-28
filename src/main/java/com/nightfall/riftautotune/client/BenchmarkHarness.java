@@ -2,6 +2,7 @@ package com.nightfall.riftautotune.client;
 
 import com.nightfall.riftautotune.core.BenchmarkResult;
 import com.nightfall.riftautotune.core.GraphicsSettings;
+import com.nightfall.riftautotune.util.CpuLoad;
 import com.nightfall.riftautotune.util.RiftLog;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -33,6 +34,8 @@ public final class BenchmarkHarness {
     private GraphicsSettings reference = new GraphicsSettings();
     private float sweepYaw;
     private CompletableFuture<BenchmarkResult> future;
+    private double cpuSum;
+    private int cpuSamples;
 
     public boolean isRunning() {
         return phase == Phase.WARMUP || phase == Phase.SAMPLING;
@@ -44,6 +47,8 @@ public final class BenchmarkHarness {
         this.sampleDurationNanos = Math.max(3, seconds) * 1_000_000_000L;
         this.warmupMonitor.reset();
         this.sampleMonitor.reset();
+        this.cpuSum = 0;
+        this.cpuSamples = 0;
         this.phase = Phase.WARMUP;
         this.phaseStartNanos = System.nanoTime();
         this.future = new CompletableFuture<>();
@@ -76,6 +81,8 @@ public final class BenchmarkHarness {
             }
             case SAMPLING -> {
                 sampleMonitor.tick();
+                double cpu = CpuLoad.system();
+                if (cpu >= 0) { cpuSum += cpu; cpuSamples++; }
                 applyCameraSweep(mc);
                 if (now - phaseStartNanos >= sampleDurationNanos) {
                     finish();
@@ -98,9 +105,10 @@ public final class BenchmarkHarness {
     private void finish() {
         double[] frames = sampleMonitor.snapshot();
         boolean gpuBound = estimateGpuBound(frames);
-        // sweepCosts left null: the optimizer falls back to tier-scaled defaults (validated).
-        // TODO: optionally run a multi-tuple sweep here to calibrate per-knob costs on this machine.
-        BenchmarkResult result = BenchmarkResult.fromFrameTimes(frames, reference, gpuBound, null);
+        double cpuLoad = cpuSamples > 0 ? cpuSum / cpuSamples : -1.0;
+        // sweepCosts left null: the cost model grounds knob costs in the measured reference frame
+        // time instead. TODO: optionally run a multi-tuple sweep here to calibrate per-knob costs.
+        BenchmarkResult result = BenchmarkResult.fromFrameTimes(frames, reference, gpuBound, null, cpuLoad);
         phase = Phase.DONE;
         RiftLog.info("Benchmark done: {}", result);
         if (future != null && !future.isDone()) {

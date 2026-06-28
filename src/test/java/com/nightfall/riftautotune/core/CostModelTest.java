@@ -56,4 +56,21 @@ class CostModelTest {
         assertFalse(noDh.isActive(Knob.DH_LOD_DISTANCE, s), "DH master inactive when DH unavailable");
         assertFalse(noDh.isActive(Knob.DH_CPU_LOAD, s), "DH sub-knob inactive when DH unavailable");
     }
+
+    @Test
+    @DisplayName("High CPU load marks the run CPU-bound and inflates CPU-heavy knob cost")
+    void cpuBoundInflatesCpuKnobs() {
+        GraphicsSettings ref = QualityLadder.presetFor(HardwareTier.HIGH);
+        BenchmarkResult cpu = new BenchmarkResult(85, 68, 55, 0.9, true, ref, null, 0.95);
+        TuningContext ctx = new TuningContext(TestData.hw(8192, 12, 32768, 2560, 1440, 144),
+                cpu, 60, 100, 50, 0.5, true, true, false);
+        CostModel cm = new CostModel(ctx);
+        assertTrue(cm.isCpuBound(), "0.95 CPU load should be CPU-bound");
+        assertTrue(cm.knobCostMs(Knob.SIMULATION_DISTANCE) > Knob.SIMULATION_DISTANCE.baseCostMs,
+                "CPU-bound inflates a CPU-heavy knob's cost");
+        assertEquals(Knob.SHADER_BLOOM.baseCostMs, cm.knobCostMs(Knob.SHADER_BLOOM), 0.05,
+                "a GPU-only knob barely changes when CPU-bound");
+        // Reference prediction stays exact regardless of the CPU inflation.
+        assertEquals(85.0, cm.predictFps(ref), 0.5);
+    }
 }

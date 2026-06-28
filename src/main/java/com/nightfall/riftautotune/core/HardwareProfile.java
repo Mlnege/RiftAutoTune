@@ -73,7 +73,8 @@ public final class HardwareProfile {
         if (vramMb < 0) {
             // VRAM unknown: fall back to a renderer-string heuristic, otherwise assume modest.
             score += heuristicVramScore(renderer);
-        } else if (vramMb >= 12288) score += 4;   // >=12 GB
+        } else if (vramMb >= 16384) score += 5;   // >=16 GB (modern high-end: RTX 4080/5080, RX 7900)
+        else if (vramMb >= 12288)   score += 4;   // >=12 GB
         else if (vramMb >= 8192)    score += 3;   //   8 GB
         else if (vramMb >= 6144)    score += 2;   //   6 GB  (GTX 1060 6GB lands here)
         else if (vramMb >= 4096)    score += 1;   //   4 GB
@@ -97,10 +98,13 @@ public final class HardwareProfile {
         else if (pixels >= 3_500_000L) score -= 1;  // ~1440p
         // <=1080p: no penalty
 
-        if (score <= 1) return HardwareTier.LOW;
-        if (score <= 4) return HardwareTier.MEDIUM;
-        if (score <= 6) return HardwareTier.HIGH;
-        return HardwareTier.ULTRA;
+        if (score <= -1) return HardwareTier.MINIMUM; // integrated / very weak, or a GPU crushed by 4K
+        if (score <= 1)  return HardwareTier.LOW;
+        if (score <= 4)  return HardwareTier.MEDIUM;  // GTX 1060 6GB @1080p (score 4) lands here
+        if (score <= 6)  return HardwareTier.HIGH;
+        if (score == 7)  return HardwareTier.VERY_HIGH;
+        if (score <= 9)  return HardwareTier.ULTRA;
+        return HardwareTier.EXTREME;                  // 16 GB+ GPU + many-core CPU + 32 GB RAM
     }
 
     /** Very rough fallback when VRAM cannot be read from the driver. */

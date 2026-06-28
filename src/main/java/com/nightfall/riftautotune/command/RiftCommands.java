@@ -38,10 +38,13 @@ public final class RiftCommands {
                     return 1;
                 }))
                 .then(Commands.literal("profile")
+                        .then(tierNode(mgr, "minimum", HardwareTier.MINIMUM))
                         .then(tierNode(mgr, "low", HardwareTier.LOW))
                         .then(tierNode(mgr, "medium", HardwareTier.MEDIUM))
                         .then(tierNode(mgr, "high", HardwareTier.HIGH))
-                        .then(tierNode(mgr, "ultra", HardwareTier.ULTRA)));
+                        .then(tierNode(mgr, "veryhigh", HardwareTier.VERY_HIGH))
+                        .then(tierNode(mgr, "ultra", HardwareTier.ULTRA))
+                        .then(tierNode(mgr, "extreme", HardwareTier.EXTREME)));
 
         dispatcher.register(root);
     }

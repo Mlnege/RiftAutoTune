@@ -1,28 +1,33 @@
 package com.nightfall.riftautotune.core;
 
 /**
- * Coarse hardware classification used to pick a starting graphics preset.
+ * Hardware classification used to pick a <em>starting</em> graphics preset. Finer-grained than a
+ * simple low/medium/high so a borderline machine gets a closer seed and the first benchmark has
+ * less work to do.
  *
- * <p>The optimizer never trusts the tier alone &mdash; it always refines against the
- * measured {@link BenchmarkResult}. The tier only decides the <em>starting point</em>
- * of the search, which keeps the first benchmark short.</p>
+ * <p>The optimizer never trusts the tier alone &mdash; it always refines against the measured
+ * {@link BenchmarkResult} (actual FPS + 1%-low + CPU load). The tier only decides where the
+ * search starts.</p>
  *
- * <p>This class is intentionally free of any Minecraft/Forge imports so the whole
- * {@code core} package can be unit-tested with plain {@code javac}.</p>
+ * <p>Order matters: {@link #ordinal()} goes from weakest to strongest and {@link #up()}/{@link #down()}
+ * walk the ladder. Free of Minecraft/Forge imports so {@code core} stays unit-testable.</p>
  */
 public enum HardwareTier {
+    MINIMUM,
     LOW,
     MEDIUM,
     HIGH,
-    ULTRA;
+    VERY_HIGH,
+    ULTRA,
+    EXTREME;
 
     /** @return the next tier up, or {@code this} if already at the top. */
     public HardwareTier up() {
-        return this == ULTRA ? ULTRA : values()[ordinal() + 1];
+        return ordinal() >= values().length - 1 ? this : values()[ordinal() + 1];
     }
 
     /** @return the next tier down, or {@code this} if already at the bottom. */
     public HardwareTier down() {
-        return this == LOW ? LOW : values()[ordinal() - 1];
+        return ordinal() <= 0 ? this : values()[ordinal() - 1];
     }
 }

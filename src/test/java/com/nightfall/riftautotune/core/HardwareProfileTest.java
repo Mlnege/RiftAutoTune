@@ -44,4 +44,17 @@ class HardwareProfileTest {
         assertEquals(a, b, "same hardware => same fingerprint");
         assertNotEquals(a, c, "different resolution => different fingerprint");
     }
+
+    @Test
+    @DisplayName("16GB+ GPU with many cores classifies as EXTREME (finer top tier)")
+    void beastIsExtreme() {
+        assertEquals(HardwareTier.EXTREME, TestData.hw(16384, 16, 32768, 1920, 1080, 60).tier);
+    }
+
+    @Test
+    @DisplayName("Integrated GPU at 4K classifies as MINIMUM (finer bottom tier)")
+    void integratedAt4kIsMinimum() {
+        // VRAM unknown -> modest heuristic, few cores, then the 4K penalty drags it below LOW.
+        assertEquals(HardwareTier.MINIMUM, TestData.hw(-1, 4, 8192, 3840, 2160, 60).tier);
+    }
 }
