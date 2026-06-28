@@ -16,6 +16,8 @@ public final class RiftConfig {
     public static final ForgeConfigSpec.IntValue BENCHMARK_SECONDS;
     public static final ForgeConfigSpec.DoubleValue QUALITY_BIAS;
     public static final ForgeConfigSpec.ConfigValue<String> PREFERRED_SHADERPACK;
+    public static final ForgeConfigSpec.BooleanValue ENABLE_SUPER_RES;
+    public static final ForgeConfigSpec.DoubleValue SR_MAX_UPSCALE;
     public static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING;
 
     static {
@@ -39,6 +41,14 @@ public final class RiftConfig {
                         "Preferred Oculus shaderpack to tune. License-clean, DH-compatible default.",
                         "If it is not installed, RiftAutoTune tunes whatever pack is active instead.")
                 .define("preferredShaderpack", "ComplementaryReimagined");
+        ENABLE_SUPER_RES = b.comment(
+                        "Use the Super Resolution (FSR) mod to upscale when the run is GPU-bound below the",
+                        "FPS floor. Renders at a lower internal resolution and reconstructs to native.")
+                .define("enableSuperResolution", true);
+        SR_MAX_UPSCALE = b.comment(
+                        "Maximum FSR upscale ratio. 1.0 = native; 1.5 = render at ~67% linear resolution;",
+                        "2.0 = render at 50% linear resolution (about 4x fewer shaded pixels).")
+                .defineInRange("superResolutionMaxUpscale", 2.0D, 1.0D, 3.0D);
         DEBUG_LOGGING = b.comment("Verbose tuning logs.")
                 .define("debugLogging", false);
 

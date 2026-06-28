@@ -2,6 +2,7 @@ package com.nightfall.riftautotune.client;
 
 import com.nightfall.riftautotune.RiftConfig;
 import com.nightfall.riftautotune.adapter.AdapterRegistry;
+import com.nightfall.riftautotune.adapter.SuperResolutionAdapter;
 import com.nightfall.riftautotune.client.gui.ResultsHud;
 import com.nightfall.riftautotune.command.RiftCommands;
 import com.nightfall.riftautotune.core.AutoTuneOptimizer;
@@ -35,6 +36,7 @@ public final class RiftClientManager {
     private final AdapterRegistry adapters = new AdapterRegistry();
     private final BenchmarkHarness benchmark = new BenchmarkHarness();
     private final AdaptiveController adaptive = new AdaptiveController();
+    private final SuperResolutionAdapter superRes = new SuperResolutionAdapter();
 
     private HardwareProfile hardware;
     private boolean shadersAvailable;
@@ -154,6 +156,8 @@ public final class RiftClientManager {
         }).thenAccept(settings -> RiftExecutor.onRenderThread(() -> {
             current = settings;
             adapters.applyAll(settings);
+            // Resolution-aware FSR upscaling: only engages when GPU-bound below the floor.
+            superRes.tune(result.avgFps, RiftConfig.TARGET_FPS_MIN.get(), result.gpuBound, result.cpuBound());
             tuningInProgress = false;
             ResultsHud.showFor(10000);
             toast(Component.translatable("riftautotune.toast.applied",

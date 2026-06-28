@@ -8,6 +8,7 @@ public final class ModCompat {
     public static final String EMBEDDIUM = "embeddium";
     public static final String OCULUS = "oculus";
     public static final String DISTANT_HORIZONS = "distanthorizons";
+    public static final String SUPER_RESOLUTION = "super_resolution";
     public static final String CTM = "ctm";
     public static final String FUSION = "fusion";
 
@@ -31,5 +32,9 @@ public final class ModCompat {
 
     public static boolean embeddiumAvailable() {
         return loaded(EMBEDDIUM);
+    }
+
+    public static boolean superResolutionAvailable() {
+        return loaded(SUPER_RESOLUTION);
     }
 }

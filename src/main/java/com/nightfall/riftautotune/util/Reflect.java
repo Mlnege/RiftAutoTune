@@ -64,4 +64,23 @@ public final class Reflect {
             return null;
         }
     }
+
+    /** First public method with the given name and argument count (handles generic bridge methods). */
+    public static Method methodByName(Class<?> owner, String name, int argCount) {
+        if (owner == null) return null;
+        for (Method m : owner.getMethods()) {
+            if (m.getName().equals(name) && m.getParameterCount() == argCount) {
+                try { m.setAccessible(true); } catch (Throwable ignored) {}
+                return m;
+            }
+        }
+        return null;
+    }
+
+    /** Get an enum constant by name from an enum class given by fully-qualified name, or null. */
+    public static Object enumConst(String enumFqcn, String constant) {
+        Class<?> c = clazz(enumFqcn);
+        if (c == null) return null;
+        return getStaticField(c, constant);
+    }
 }
