@@ -17,5 +17,16 @@
 
     "riftautotune.config.title": "RiftAutoTune Configuration",
 
+    "riftautotune.consent.title": "Enable shaders?",
+    "riftautotune.consent.accept": "Enable shaders",
+    "riftautotune.consent.decline": "Keep shaders off",
+    "riftautotune.consent.spec_gpu": "GPU: %s",
+    "riftautotune.consent.spec_hw": "VRAM %s | %s threads | %s GB RAM",
+    "riftautotune.consent.spec_display": "Display: %sx%s @ %sHz",
+    "riftautotune.consent.spec_tier": "Detected tier: %s",
+    "riftautotune.consent.baseline": "Baseline (no shaders): %s avg / %s 1%% low",
+    "riftautotune.consent.predicted_with": "Predicted with shaders: ~%s FPS",
+    "riftautotune.consent.predicted_without": "Predicted without shaders: ~%s FPS",
+
     "key.categories.riftautotune": "RiftAutoTune"
 }

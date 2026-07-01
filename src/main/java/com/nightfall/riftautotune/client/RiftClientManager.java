@@ -4,12 +4,15 @@ import com.nightfall.riftautotune.RiftConfig;
 import com.nightfall.riftautotune.adapter.AdapterRegistry;
 import com.nightfall.riftautotune.adapter.SuperResolutionAdapter;
 import com.nightfall.riftautotune.client.gui.ResultsHud;
+import com.nightfall.riftautotune.client.gui.ShaderConsentScreen;
 import com.nightfall.riftautotune.command.RiftCommands;
 import com.nightfall.riftautotune.core.AutoTuneOptimizer;
 import com.nightfall.riftautotune.core.BenchmarkResult;
+import com.nightfall.riftautotune.core.CostModel;
 import com.nightfall.riftautotune.core.GraphicsSettings;
 import com.nightfall.riftautotune.core.HardwareProfile;
 import com.nightfall.riftautotune.core.HardwareTier;
+import com.nightfall.riftautotune.core.Knob;
 import com.nightfall.riftautotune.core.QualityLadder;
 import com.nightfall.riftautotune.core.TuningContext;
 import com.nightfall.riftautotune.util.ModCompat;
@@ -62,6 +65,9 @@ public final class RiftClientManager {
     public void onLogin(ClientPlayerNetworkEvent.LoggingIn event) {
         if (firstRunHandled) {
             adaptive.reset();
+            // Re-entering the game (same client session): re-ask shader consent using the
+            // cached tuning result instead of re-benchmarking.
+            RiftExecutor.onRenderThread(this::reconfirmShaderConsentForCurrent);
             return;
         }
         firstRunHandled = true;
@@ -85,7 +91,7 @@ public final class RiftClientManager {
             return; // don't run the adaptive loop mid-benchmark
         }
 
-        // Pause adaptation while any screen (incl. video settings) is open.
+        // Pause adaptation while any screen (incl. video settings, the shader consent dialog) is open.
         adaptive.setPaused(mc.screen != null);
 
         if (current != null && !tuningInProgress) {
@@ -109,13 +115,10 @@ public final class RiftClientManager {
             ProfileStore.SavedProfile saved = ProfileStore.load();
             if (saved != null && hardware.fingerprint().equals(saved.fingerprint)) {
                 GraphicsSettings restored = ProfileStore.toSettings(saved);
-                RiftExecutor.onRenderThread(() -> {
-                    current = restored;
-                    adapters.applyAll(restored, true);
-                    toast(Component.translatable("riftautotune.toast.nochange"));
-                    ResultsHud.showFor(8000);
-                    RiftLog.info("Restored saved profile (fingerprint match).");
-                });
+                BenchmarkResult approx = new BenchmarkResult(saved.avgFps, saved.onePctLowFps,
+                        saved.onePctLowFps * 0.8, 0.9, true,
+                        QualityLadder.potatoBaseline(shadersAvailable), null);
+                RiftExecutor.onRenderThread(() -> presentAndApply(restored, approx, true));
             } else {
                 RiftExecutor.onRenderThread(this::startBenchmark);
             }
@@ -157,19 +160,101 @@ public final class RiftClientManager {
                     RiftConfig.ONE_PCT_FLOOR.get(), RiftConfig.QUALITY_BIAS.get(),
                     shadersAvailable, dhAvailable, vsync);
             return AutoTuneOptimizer.optimize(ctx);
-        }).thenAccept(settings -> RiftExecutor.onRenderThread(() -> {
-            current = settings;
-            adapters.applyAll(settings, true);
+        }).thenAccept(settings -> RiftExecutor.onRenderThread(() ->
+                presentAndApply(settings, result, false)));
+    }
+
+    // ------------------------------------------------------ shader consent
+    /**
+     * Gate before shaders are actually enabled: shows hardware specs + predicted performance
+     * (with vs without shaders) and only applies shaders once the player accepts. Skipped
+     * entirely when shaders aren't available, aren't part of the tuned settings, or the player
+     * disabled the prompt in config.
+     */
+    private void presentAndApply(GraphicsSettings settings, BenchmarkResult referenceResult, boolean isRestore) {
+        boolean wantsShaders = shadersAvailable && settings.get(Knob.SHADERS) > 0;
+        if (!wantsShaders || !RiftConfig.ASK_SHADER_CONSENT.get()) {
+            finishApply(settings, referenceResult, isRestore);
+            return;
+        }
+
+        GraphicsSettings withoutShaders = settings.copy().set(Knob.SHADERS, 0);
+        TuningContext ctx = new TuningContext(hardware, referenceResult,
+                RiftConfig.TARGET_FPS_MIN.get(), RiftConfig.TARGET_FPS_MAX.get(),
+                RiftConfig.ONE_PCT_FLOOR.get(), RiftConfig.QUALITY_BIAS.get(),
+                shadersAvailable, dhAvailable, readVsync());
+        CostModel cm = new CostModel(ctx);
+        double fpsWith = cm.predictFps(settings);
+        double fpsWithout = cm.predictFps(withoutShaders);
+
+        List<Component> lines = buildConsentLines(referenceResult, fpsWith, fpsWithout);
+        Minecraft.getInstance().setScreen(new ShaderConsentScreen(lines,
+                () -> finishApply(settings, referenceResult, isRestore),
+                () -> finishApply(withoutShaders, referenceResult, isRestore)));
+    }
+
+    /** Re-shown on every subsequent world join in the same client session (no re-benchmark). */
+    private void reconfirmShaderConsentForCurrent() {
+        if (current == null || lastResult == null || hardware == null) return;
+        if (!shadersAvailable || current.get(Knob.SHADERS) <= 0 || !RiftConfig.ASK_SHADER_CONSENT.get()) {
+            return;
+        }
+
+        GraphicsSettings withShaders = current;
+        GraphicsSettings withoutShaders = current.copy().set(Knob.SHADERS, 0);
+        TuningContext ctx = new TuningContext(hardware, lastResult,
+                RiftConfig.TARGET_FPS_MIN.get(), RiftConfig.TARGET_FPS_MAX.get(),
+                RiftConfig.ONE_PCT_FLOOR.get(), RiftConfig.QUALITY_BIAS.get(),
+                shadersAvailable, dhAvailable, readVsync());
+        CostModel cm = new CostModel(ctx);
+        double fpsWith = cm.predictFps(withShaders);
+        double fpsWithout = cm.predictFps(withoutShaders);
+
+        List<Component> lines = buildConsentLines(lastResult, fpsWith, fpsWithout);
+        Minecraft.getInstance().setScreen(new ShaderConsentScreen(lines,
+                () -> applyRuntimeChoice(withShaders),
+                () -> applyRuntimeChoice(withoutShaders)));
+    }
+
+    private void applyRuntimeChoice(GraphicsSettings settings) {
+        current = settings;
+        RiftExecutor.onRenderThread(() -> adapters.applyAll(settings, true));
+    }
+
+    private List<Component> buildConsentLines(BenchmarkResult baseline, double fpsWith, double fpsWithout) {
+        List<Component> lines = new ArrayList<>();
+        lines.add(Component.translatable("riftautotune.consent.spec_gpu", hardware.gpuRenderer));
+        lines.add(Component.translatable("riftautotune.consent.spec_hw",
+                hardware.vramMb > 0 ? (hardware.vramMb + "MB") : "?",
+                hardware.cpuThreads, Math.round(hardware.systemRamMb / 1024.0)));
+        lines.add(Component.translatable("riftautotune.consent.spec_display",
+                hardware.screenWidth, hardware.screenHeight, hardware.refreshRate));
+        lines.add(Component.translatable("riftautotune.consent.spec_tier", tierName()));
+        lines.add(Component.empty());
+        lines.add(Component.translatable("riftautotune.consent.baseline",
+                (int) baseline.avgFps, (int) baseline.onePctLowFps));
+        lines.add(Component.translatable("riftautotune.consent.predicted_with", (int) fpsWith));
+        lines.add(Component.translatable("riftautotune.consent.predicted_without", (int) fpsWithout));
+        return lines;
+    }
+
+    private void finishApply(GraphicsSettings settings, BenchmarkResult result, boolean isRestore) {
+        current = settings;
+        adapters.applyAll(settings, true);
+        if (isRestore) {
+            toast(Component.translatable("riftautotune.toast.nochange"));
+            ResultsHud.showFor(8000);
+            RiftLog.info("Restored saved profile (fingerprint match): {}", settings);
+        } else {
             // Resolution-aware FSR upscaling: only engages when GPU-bound below the floor.
             superRes.tune(result.avgFps, RiftConfig.TARGET_FPS_MIN.get(), result.gpuBound, result.cpuBound());
-            tuningInProgress = false;
             ResultsHud.showFor(10000);
-            toast(Component.translatable("riftautotune.toast.applied",
-                    tierName(), (int) result.avgFps));
+            toast(Component.translatable("riftautotune.toast.applied", tierName(), (int) result.avgFps));
             persist(settings, result);
-            adaptive.reset();
             RiftLog.info("Applied tuned settings: {}", settings);
-        }));
+        }
+        tuningInProgress = false;
+        adaptive.reset();
     }
 
     private void persist(GraphicsSettings settings, BenchmarkResult result) {
@@ -183,8 +268,8 @@ public final class RiftClientManager {
     }
 
     private void forceAvailability(GraphicsSettings s) {
-        if (!shadersAvailable) s.set(com.nightfall.riftautotune.core.Knob.SHADERS, 0);
-        if (!dhAvailable) s.set(com.nightfall.riftautotune.core.Knob.DH_LOD_DISTANCE, 0);
+        if (!shadersAvailable) s.set(Knob.SHADERS, 0);
+        if (!dhAvailable) s.set(Knob.DH_LOD_DISTANCE, 0);
     }
 
     private boolean readVsync() {
@@ -224,6 +309,7 @@ public final class RiftClientManager {
     }
 
     public void commandForceProfile(HardwareTier tier) {
+        // An explicit manual command is already the user's consent - no dialog.
         forcedTier = tier;
         RiftExecutor.onRenderThread(() -> {
             if (hardware == null) hardware = HardwareDetector.detect();

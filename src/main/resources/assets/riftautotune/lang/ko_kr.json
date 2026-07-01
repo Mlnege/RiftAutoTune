@@ -1,0 +1,32 @@
+{
+    "riftautotune.hud.tier": "등급: %s",
+    "riftautotune.hud.fps": "FPS: 평균 %s / 1%% %s / 0.1%% %s",
+    "riftautotune.hud.preset": "프리셋: %s",
+    "riftautotune.hud.mode": "모드: %s",
+
+    "riftautotune.toast.title": "RiftAutoTune",
+    "riftautotune.toast.benchmarking": "하드웨어 벤치마크 중...",
+    "riftautotune.toast.applied": "%s 프리셋 적용 (%s FPS)",
+    "riftautotune.toast.nochange": "하드웨어 변동 없음 - 저장된 프로필 사용",
+
+    "riftautotune.command.benchmark": "벤치마크 실행 중...",
+    "riftautotune.command.apply": "튜닝된 설정 적용 중...",
+    "riftautotune.command.reset": "저장된 프로필 삭제됨. 다음 접속 시 재벤치마크합니다.",
+    "riftautotune.command.status.header": "RiftAutoTune 상태",
+    "riftautotune.command.profile.set": "강제 프로필: %s",
+
+    "riftautotune.config.title": "RiftAutoTune 설정",
+
+    "riftautotune.consent.title": "쉐이더를 적용하시겠습니까?",
+    "riftautotune.consent.accept": "쉐이더 적용",
+    "riftautotune.consent.decline": "쉐이더 끄기",
+    "riftautotune.consent.spec_gpu": "GPU: %s",
+    "riftautotune.consent.spec_hw": "VRAM %s | 스레드 %s개 | RAM %sGB",
+    "riftautotune.consent.spec_display": "디스플레이: %sx%s @ %sHz",
+    "riftautotune.consent.spec_tier": "감지된 등급: %s",
+    "riftautotune.consent.baseline": "기준 측정(쉐이더 없음): 평균 %s / 1%% 로우 %s",
+    "riftautotune.consent.predicted_with": "쉐이더 적용 시 예상: 약 %s FPS",
+    "riftautotune.consent.predicted_without": "쉐이더 미적용 시 예상: 약 %s FPS",
+
+    "key.categories.riftautotune": "RiftAutoTune"
+}

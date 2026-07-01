@@ -18,6 +18,7 @@ public final class RiftConfig {
     public static final ForgeConfigSpec.ConfigValue<String> PREFERRED_SHADERPACK;
     public static final ForgeConfigSpec.BooleanValue ENABLE_SUPER_RES;
     public static final ForgeConfigSpec.DoubleValue SR_MAX_UPSCALE;
+    public static final ForgeConfigSpec.BooleanValue ASK_SHADER_CONSENT;
     public static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING;
 
     static {
@@ -49,6 +50,11 @@ public final class RiftConfig {
                         "Maximum FSR upscale ratio. 1.0 = native; 1.5 = render at ~67% linear resolution;",
                         "2.0 = render at 50% linear resolution (about 4x fewer shaded pixels).")
                 .defineInRange("superResolutionMaxUpscale", 2.0D, 1.0D, 3.0D);
+        ASK_SHADER_CONSENT = b.comment(
+                        "Ask for confirmation before enabling shaders on world entry, showing the",
+                        "detected hardware and the expected performance. Shaders are only applied",
+                        "after the player accepts; declining tunes the profile without shaders.")
+                .define("askShaderConsent", true);
         DEBUG_LOGGING = b.comment("Verbose tuning logs.")
                 .define("debugLogging", false);
 
