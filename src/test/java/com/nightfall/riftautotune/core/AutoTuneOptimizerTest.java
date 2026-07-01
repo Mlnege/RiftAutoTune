@@ -72,6 +72,49 @@ class AutoTuneOptimizerTest {
     }
 
     @Test
+    @DisplayName("Bottom-up: strong hardware measured at potato buys substantial detail")
+    void potatoBaselineUpgradesOnStrongHardware() {
+        // A 300-FPS potato measurement means huge headroom: the optimizer must ADD detail well
+        // beyond the baseline, not leave the player staring at potato graphics.
+        TuningContext ctx = TestData.ctx(TestData.hw(16384, 16, 65536, 2560, 1440, 144),
+                TestData.potatoBench(true, 300, 220), 60, 100, true, true);
+        GraphicsSettings baseline = QualityLadder.potatoBaseline(true);
+        GraphicsSettings tuned = AutoTuneOptimizer.optimize(ctx);
+        CostModel cm = new CostModel(ctx);
+        assertTrue(cm.visualScore(tuned) > cm.visualScore(baseline),
+                "strong hardware must gain visual detail over the potato baseline; got " + tuned);
+        assertTrue(cm.predictFps(tuned) >= ctx.effectiveLow - 0.6,
+                "upgraded settings must still hold the floor");
+        assertEquals(1, tuned.get(Knob.SHADERS), "shaderpack must stay enabled");
+    }
+
+    @Test
+    @DisplayName("Bottom-up: weak hardware at the floor keeps the band and buys no expensive detail")
+    void potatoBaselineHoldsOnWeakHardware() {
+        // Potato measurement sits exactly at both floors: only negligible cosmetic upgrades can
+        // fit; anything expensive (shader sub-knobs, DH) would break the floor and must stay off.
+        TuningContext ctx = TestData.ctx(TestData.hw(2048, 4, 8192, 1920, 1080, 60),
+                TestData.potatoBench(true, 60.5, 50.5), 60, 100, true, true);
+        GraphicsSettings tuned = AutoTuneOptimizer.optimize(ctx);
+        CostModel cm = new CostModel(ctx);
+        assertTrue(cm.predictFps(tuned) >= ctx.effectiveLow - 0.6,
+                "tuned fps " + cm.predictFps(tuned) + " must hold the floor " + ctx.effectiveLow);
+        assertEquals(0, tuned.get(Knob.SHADER_SHADOW_RES), "no headroom -> shadow res stays at floor");
+        assertEquals(0, tuned.get(Knob.SHADER_VOLUMETRIC), "no headroom -> volumetrics stay at floor");
+        assertEquals(0, tuned.get(Knob.DH_LOD_DISTANCE), "no headroom -> DH stays off");
+    }
+
+    @Test
+    @DisplayName("Bottom-up: the potato baseline keeps the shaderpack on at its floor profile")
+    void potatoBaselineKeepsShadersOn() {
+        GraphicsSettings baseline = QualityLadder.potatoBaseline(true);
+        assertEquals(1, baseline.get(Knob.SHADERS), "baseline keeps the pack enabled");
+        assertEquals(0, baseline.get(Knob.SHADER_SHADOW_RES), "shader sub-knobs start at the floor");
+        assertEquals(0, QualityLadder.potatoBaseline(false).get(Knob.SHADERS),
+                "no Oculus -> baseline has shaders off");
+    }
+
+    @Test
     @DisplayName("Heavy shader at sub-band FPS sheds shader quality even on strong hardware")
     void heavyShaderShedsOnStrongHardware() {
         // Strong GPU (EXTREME seed) but the heavy pack measured only 55 avg / 40 1%-low with shaders

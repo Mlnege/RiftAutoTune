@@ -12,6 +12,21 @@ public final class QualityLadder {
 
     private QualityLadder() {}
 
+    /**
+     * The bottom-up tuning baseline: the potato (MINIMUM) preset, but with the shaderpack kept ON
+     * at its lowest profile when shaders are available. This is where the benchmark measures and
+     * where the optimizer starts buying detail from, so the measurement reflects the real cost of
+     * "the pack's potato look" instead of a shaderless screen the player will never actually use.
+     * DH stays off in the baseline; the optimizer may buy DH detail with measured headroom.
+     */
+    public static GraphicsSettings potatoBaseline(boolean shadersAvailable) {
+        GraphicsSettings s = presetFor(HardwareTier.MINIMUM);
+        if (shadersAvailable) {
+            s.set(Knob.SHADERS, 1); // pack on, every shader sub-knob at its floor (VERYLOW profile)
+        }
+        return s;
+    }
+
     public static GraphicsSettings presetFor(HardwareTier tier) {
         GraphicsSettings s = new GraphicsSettings();
         switch (tier) {

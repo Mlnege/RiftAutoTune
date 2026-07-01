@@ -1,14 +1,21 @@
 package com.nightfall.riftautotune.core;
 
 /**
- * Greedy / hill-climb optimizer. Seeds from the tier preset, then:
+ * Greedy / hill-climb optimizer, <b>bottom-up</b>: seeds from the potato baseline
+ * ({@link QualityLadder#potatoBaseline}) — the lowest settings with the shaderpack kept on at its
+ * floor profile — then:
  * <ol>
- *   <li><b>Downgrade</b> until the prediction satisfies the band floor and the 1%-low floor,
- *       always shedding the knob that saves the most frame time per unit of visual quality lost
- *       (so shadow-map resolution and DH CPU load go before render distance or shaders).</li>
- *   <li><b>Upgrade</b> to spend leftover headroom, always buying the most visual quality per ms,
- *       stopping at a quality "aim" inside the band that {@code qualityBias} controls.</li>
+ *   <li><b>Downgrade</b> (safety net) if even the baseline misses the band floor or the 1%-low
+ *       floor, shedding the knob that saves the most frame time per unit of visual quality lost
+ *       (this is what can turn the shaderpack fully off on genuinely weak machines).</li>
+ *   <li><b>Upgrade</b> to spend the measured headroom, always buying the most visual quality per
+ *       ms, stopping at a quality "aim" inside the band that {@code qualityBias} controls.</li>
  * </ol>
+ *
+ * <p>Detail is only ever <em>added</em> on top of the potato look according to what the measured
+ * hardware can actually afford — the per-tier preset is no longer the seed (it pinned options high
+ * on strong hardware before the measurement could say otherwise; tiers remain only as the HUD
+ * label and the {@code /riftautotune profile} manual override).</p>
  *
  * <p>Deterministic (ties broken by {@link Knob} ordinal), terminating (iteration-capped), and
  * fully unit-testable.</p>
@@ -27,7 +34,7 @@ public final class AutoTuneOptimizer {
     }
 
     public GraphicsSettings optimize() {
-        GraphicsSettings s = QualityLadder.presetFor(ctx.hardware.tier);
+        GraphicsSettings s = QualityLadder.potatoBaseline(ctx.shadersAvailable);
         forceFeatureAvailability(s);
 
         // Quality aim inside the band. Higher bias => aim nearer the low edge => more quality kept.

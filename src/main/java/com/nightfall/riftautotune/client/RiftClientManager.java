@@ -111,7 +111,7 @@ public final class RiftClientManager {
                 GraphicsSettings restored = ProfileStore.toSettings(saved);
                 RiftExecutor.onRenderThread(() -> {
                     current = restored;
-                    adapters.applyAll(restored);
+                    adapters.applyAll(restored, true);
                     toast(Component.translatable("riftautotune.toast.nochange"));
                     ResultsHud.showFor(8000);
                     RiftLog.info("Restored saved profile (fingerprint match).");
@@ -123,14 +123,18 @@ public final class RiftClientManager {
     }
 
     private void startBenchmark() {
-        HardwareTier tier = forcedTier != null ? forcedTier : hardware.tier;
-        GraphicsSettings reference = QualityLadder.presetFor(tier);
+        // Bottom-up tuning: always measure at the potato baseline (lowest settings, shaderpack on
+        // at its floor profile). The optimizer then only ADDS detail the measurement can afford.
+        // A forced tier (/riftautotune profile <tier>) still benchmarks at that preset explicitly.
+        GraphicsSettings reference = forcedTier != null
+                ? QualityLadder.presetFor(forcedTier)
+                : QualityLadder.potatoBaseline(shadersAvailable);
         forceAvailability(reference);
         current = reference;
         tuningInProgress = true;
 
         // Apply the reference so the measurement reflects a known starting point.
-        adapters.applyAll(reference);
+        adapters.applyAll(reference, true);
         toast(Component.translatable("riftautotune.toast.benchmarking"));
 
         benchmark.begin(reference, RiftConfig.BENCHMARK_SECONDS.get())
@@ -155,7 +159,7 @@ public final class RiftClientManager {
             return AutoTuneOptimizer.optimize(ctx);
         }).thenAccept(settings -> RiftExecutor.onRenderThread(() -> {
             current = settings;
-            adapters.applyAll(settings);
+            adapters.applyAll(settings, true);
             // Resolution-aware FSR upscaling: only engages when GPU-bound below the floor.
             superRes.tune(result.avgFps, RiftConfig.TARGET_FPS_MIN.get(), result.gpuBound, result.cpuBound());
             tuningInProgress = false;
@@ -210,7 +214,7 @@ public final class RiftClientManager {
     }
 
     public void commandApply() {
-        if (current != null) RiftExecutor.onRenderThread(() -> adapters.applyAll(current));
+        if (current != null) RiftExecutor.onRenderThread(() -> adapters.applyAll(current, true));
     }
 
     public void commandReset() {
@@ -226,7 +230,7 @@ public final class RiftClientManager {
             GraphicsSettings preset = QualityLadder.presetFor(tier);
             forceAvailability(preset);
             current = preset;
-            adapters.applyAll(preset);
+            adapters.applyAll(preset, true);
             ResultsHud.showFor(8000);
             RiftLog.info("Forced profile {}.", tier);
         });
