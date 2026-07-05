@@ -21,6 +21,12 @@ public final class RiftConfig {
     public static final ForgeConfigSpec.BooleanValue ASK_SHADER_CONSENT;
     public static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING;
 
+    public static final ForgeConfigSpec.BooleanValue DH_GUARD;
+    public static final ForgeConfigSpec.IntValue DH_HOST_MAX_LOD_LEVEL;
+    public static final ForgeConfigSpec.BooleanValue DH_AUTO_OFF;
+    public static final ForgeConfigSpec.IntValue DH_AUTO_OFF_FPS;
+    public static final ForgeConfigSpec.IntValue DH_AUTO_OFF_HOLD_SECONDS;
+
     static {
         ForgeConfigSpec.Builder b = new ForgeConfigSpec.Builder();
 
@@ -57,6 +63,28 @@ public final class RiftConfig {
                 .define("askShaderConsent", true);
         DEBUG_LOGGING = b.comment("Verbose tuning logs.")
                 .define("debugLogging", false);
+
+        b.pop();
+
+        b.comment("Distant Horizons session guard - multiplayer/host protection and auto-off.")
+                .push("distantHorizons");
+
+        DH_GUARD = b.comment(
+                        "In ANY multiplayer session (remote server or hosting), force the DH CPU load",
+                        "to its minimum so LOD generation never fights the network/server work.")
+                .define("dhMultiplayerGuard", true);
+        DH_HOST_MAX_LOD_LEVEL = b.comment(
+                        "Highest DH LOD distance level allowed while HOSTING an open world",
+                        "(0=off, 1=64, 2=128, 3=256, 4=512 chunks). Keeps the integrated server responsive.")
+                .defineInRange("dhHostMaxLodLevel", 2, 0, 4);
+        DH_AUTO_OFF = b.comment(
+                        "If FPS stays under dhAutoOffFps for dhAutoOffHoldSeconds while DH is rendering,",
+                        "switch DH off for this session (sticky; /riftautotune dh on re-enables).")
+                .define("dhAutoOff", true);
+        DH_AUTO_OFF_FPS = b.comment("Average-FPS floor that triggers the DH auto-off.")
+                .defineInRange("dhAutoOffFps", 30, 10, 120);
+        DH_AUTO_OFF_HOLD_SECONDS = b.comment("How long FPS must stay under the floor before auto-off.")
+                .defineInRange("dhAutoOffHoldSeconds", 45, 5, 600);
 
         b.pop();
         SPEC = b.build();

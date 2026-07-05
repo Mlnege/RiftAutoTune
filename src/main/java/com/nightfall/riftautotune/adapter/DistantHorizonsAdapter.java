@@ -69,13 +69,24 @@ public final class DistantHorizonsAdapter implements ConfigAdapter {
         }
 
         // CPU throttle - the key lever for "DH crushes the CPU". 0..2 -> 25% / 50% / 100% runtime.
+        // At the low levels the worker THREAD COUNT is also capped: the runtime ratio alone still
+        // wakes every worker (bad on a busy host/multiplayer client); one throttled thread is the
+        // true low-impact mode.
         if (multi != null) {
-            double ratio = switch (Math.max(0, Math.min(2, cpuLoad))) {
+            int cores = Math.max(1, Runtime.getRuntime().availableProcessors());
+            int level = Math.max(0, Math.min(2, cpuLoad));
+            double ratio = switch (level) {
                 case 0 -> 0.25;
                 case 1 -> 0.50;
                 default -> 1.00;
             };
             setCfg(call0(multi, "threadRuntimeRatio"), Double.valueOf(ratio), "threadRuntimeRatio");
+            switch (level) {
+                case 0 -> setCfg(call0(multi, "threadCount"), Integer.valueOf(1), "threadCount");
+                case 1 -> setCfg(call0(multi, "threadCount"),
+                        Integer.valueOf(Math.max(1, cores / 4)), "threadCount");
+                default -> { /* leave DH's own thread count */ }
+            }
         }
     }
 

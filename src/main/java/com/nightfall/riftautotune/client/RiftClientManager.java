@@ -40,6 +40,7 @@ public final class RiftClientManager {
     private final BenchmarkHarness benchmark = new BenchmarkHarness();
     private final AdaptiveController adaptive = new AdaptiveController();
     private final SuperResolutionAdapter superRes = new SuperResolutionAdapter();
+    private final DhSessionGuard dhGuard = new DhSessionGuard();
 
     private HardwareProfile hardware;
     private boolean shadersAvailable;
@@ -78,6 +79,7 @@ public final class RiftClientManager {
     public void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         adaptive.reset();
         benchmark.cancel();
+        dhGuard.onSessionEnd();
     }
 
     @SubscribeEvent
@@ -96,6 +98,9 @@ public final class RiftClientManager {
 
         if (current != null && !tuningInProgress) {
             adaptive.onRenderFrame(current, this::applyResolved);
+            // Session guard AFTER the adaptive step: it clamps whatever the optimizer chose, so
+            // multiplayer CPU protection and the auto-off can never be out-voted.
+            dhGuard.onRenderFrame(mc, current, this::applyResolved);
         }
     }
 
@@ -110,6 +115,7 @@ public final class RiftClientManager {
         shadersAvailable = ModCompat.shadersAvailable();
         dhAvailable = ModCompat.distantHorizonsAvailable();
         adaptive.setEnvironment(hardware, shadersAvailable, dhAvailable);
+        dhGuard.setDhAvailable(dhAvailable);
 
         RiftExecutor.async(() -> {
             ProfileStore.SavedProfile saved = ProfileStore.load();
@@ -217,8 +223,9 @@ public final class RiftClientManager {
     }
 
     private void applyRuntimeChoice(GraphicsSettings settings) {
-        current = settings;
-        RiftExecutor.onRenderThread(() -> adapters.applyAll(settings, true));
+        GraphicsSettings clamped = dhGuard.clamp(settings);
+        current = clamped;
+        RiftExecutor.onRenderThread(() -> adapters.applyAll(clamped, true));
     }
 
     private List<Component> buildConsentLines(BenchmarkResult baseline, double fpsWith, double fpsWithout) {
@@ -239,6 +246,7 @@ public final class RiftClientManager {
     }
 
     private void finishApply(GraphicsSettings settings, BenchmarkResult result, boolean isRestore) {
+        settings = dhGuard.clamp(settings);
         current = settings;
         adapters.applyAll(settings, true);
         if (isRestore) {
@@ -263,8 +271,9 @@ public final class RiftClientManager {
     }
 
     private void applyResolved(GraphicsSettings settings) {
-        current = settings;
-        adapters.applyAll(settings);
+        GraphicsSettings clamped = dhGuard.clamp(settings);
+        current = clamped;
+        adapters.applyAll(clamped);
     }
 
     private void forceAvailability(GraphicsSettings s) {
@@ -335,7 +344,23 @@ public final class RiftClientManager {
                 + ", DH: " + (dhAvailable ? "available" : "absent"));
         out.add("Adaptive: " + (RiftConfig.ENABLE_ADAPTIVE.get() ? "on" : "off")
                 + (adaptive.isPaused() ? " (paused)" : ""));
+        out.add(dhGuard.statusLine());
         return out;
+    }
+
+    /** /riftautotune dh &lt;on|off|auto&gt; - manual override for the DH session guard. */
+    public void commandDhOverride(DhSessionGuard.UserOverride mode) {
+        dhGuard.setOverride(mode);
+        RiftExecutor.onRenderThread(() -> {
+            if (current == null) return;
+            GraphicsSettings next = current;
+            if (mode == DhSessionGuard.UserOverride.FORCE_ON
+                    && dhAvailable && next.get(Knob.DH_LOD_DISTANCE) == 0) {
+                // Re-enable at a modest distance; the adaptive loop tunes it from there.
+                next = next.copy().set(Knob.DH_LOD_DISTANCE, 2);
+            }
+            applyResolved(next);
+        });
     }
 
     // -------------------------------------------------------------- getters for HUD

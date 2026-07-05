@@ -37,6 +37,13 @@ public final class RiftCommands {
                     feedback(ctx, "Cleared saved profile. Re-benchmark on next world join.");
                     return 1;
                 }))
+                .then(Commands.literal("dh")
+                        .then(dhNode(mgr, "on", com.nightfall.riftautotune.client.DhSessionGuard.UserOverride.FORCE_ON,
+                                "DH forced ON (guard auto-off cleared)."))
+                        .then(dhNode(mgr, "off", com.nightfall.riftautotune.client.DhSessionGuard.UserOverride.FORCE_OFF,
+                                "DH forced OFF."))
+                        .then(dhNode(mgr, "auto", com.nightfall.riftautotune.client.DhSessionGuard.UserOverride.AUTO,
+                                "DH guard back to automatic.")))
                 .then(Commands.literal("profile")
                         .then(tierNode(mgr, "minimum", HardwareTier.MINIMUM))
                         .then(tierNode(mgr, "low", HardwareTier.LOW))
@@ -47,6 +54,16 @@ public final class RiftCommands {
                         .then(tierNode(mgr, "extreme", HardwareTier.EXTREME)));
 
         dispatcher.register(root);
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> dhNode(
+            RiftClientManager mgr, String name,
+            com.nightfall.riftautotune.client.DhSessionGuard.UserOverride mode, String message) {
+        return Commands.literal(name).executes(ctx -> {
+            mgr.commandDhOverride(mode);
+            feedback(ctx, message);
+            return 1;
+        });
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> tierNode(
