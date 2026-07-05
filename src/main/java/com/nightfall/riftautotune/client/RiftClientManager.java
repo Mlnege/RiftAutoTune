@@ -41,6 +41,9 @@ public final class RiftClientManager {
     private final AdaptiveController adaptive = new AdaptiveController();
     private final SuperResolutionAdapter superRes = new SuperResolutionAdapter();
     private final DhSessionGuard dhGuard = new DhSessionGuard();
+    private final com.nightfall.riftautotune.adapter.C2meAdapter c2me =
+            new com.nightfall.riftautotune.adapter.C2meAdapter();
+    private volatile int c2meLastWritten = -1;
 
     private HardwareProfile hardware;
     private boolean shadersAvailable;
@@ -266,8 +269,12 @@ public final class RiftClientManager {
     }
 
     private void persist(GraphicsSettings settings, BenchmarkResult result) {
-        RiftExecutor.async(() -> ProfileStore.save(ProfileStore.build(
-                hardware.fingerprint(), tierName(), result.avgFps, result.onePctLowFps, settings)));
+        RiftExecutor.async(() -> {
+            ProfileStore.save(ProfileStore.build(
+                    hardware.fingerprint(), tierName(), result.avgFps, result.onePctLowFps, settings));
+            // Next-launch chunk-engine sizing (file I/O only - safe off the render thread).
+            c2meLastWritten = c2me.tune(hardware, result.cpuBound());
+        });
     }
 
     private void applyResolved(GraphicsSettings settings) {
@@ -345,6 +352,9 @@ public final class RiftClientManager {
         out.add("Adaptive: " + (RiftConfig.ENABLE_ADAPTIVE.get() ? "on" : "off")
                 + (adaptive.isPaused() ? " (paused)" : ""));
         out.add(dhGuard.statusLine());
+        out.add("C2ME: " + (c2me.isAvailable()
+                ? (c2meLastWritten > 0 ? c2meLastWritten + " threads (next launch)" : "installed, not yet tuned")
+                : "absent"));
         return out;
     }
 

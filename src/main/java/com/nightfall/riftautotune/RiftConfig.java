@@ -21,6 +21,9 @@ public final class RiftConfig {
     public static final ForgeConfigSpec.BooleanValue ASK_SHADER_CONSENT;
     public static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING;
 
+    public static final ForgeConfigSpec.BooleanValue ENABLE_C2ME_TUNING;
+    public static final ForgeConfigSpec.IntValue C2ME_MAX_PARALLELISM;
+
     public static final ForgeConfigSpec.BooleanValue DH_GUARD;
     public static final ForgeConfigSpec.IntValue DH_HOST_MAX_LOD_LEVEL;
     public static final ForgeConfigSpec.BooleanValue DH_AUTO_OFF;
@@ -63,6 +66,19 @@ public final class RiftConfig {
                 .define("askShaderConsent", true);
         DEBUG_LOGGING = b.comment("Verbose tuning logs.")
                 .define("debugLogging", false);
+
+        b.pop();
+
+        b.comment("C2ME (parallel chunk engine) static tuning - written to config/c2me.toml, applies next launch.")
+                .push("chunkEngine");
+
+        ENABLE_C2ME_TUNING = b.comment(
+                        "Size C2ME's worker thread pool from the measured hardware tier (conservative:",
+                        "always below C2ME's own default so chunk gen never overloads the machine).")
+                .define("enableC2meTuning", true);
+        C2ME_MAX_PARALLELISM = b.comment(
+                        "Hard cap for C2ME worker threads. 0 = automatic (cores - 2).")
+                .defineInRange("c2meMaxParallelism", 0, 0, 64);
 
         b.pop();
 
