@@ -27,8 +27,11 @@ import java.util.regex.Pattern;
  */
 public final class C2meAdapter {
 
+    // Matches both the numeric form and C2ME's generated string form (= "default") -
+    // the generated config quotes non-numeric values, and missing that case would append
+    // a duplicate key instead of replacing the line.
     private static final Pattern KEY_LINE =
-            Pattern.compile("(?m)^\\s*globalExecutorParallelism\\s*=\\s*-?\\d+\\s*$");
+            Pattern.compile("(?m)^\\s*globalExecutorParallelism\\s*=\\s*\"?[A-Za-z0-9_.-]+\"?\\s*$");
 
     /** Connector keeps the fabric mod id; stock C2ME uses c2me, the Connector fork uses c3me. */
     public boolean isAvailable() {
