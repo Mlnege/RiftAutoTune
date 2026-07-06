@@ -62,6 +62,56 @@ public final class ShaderProfilePolicy {
         return enablesPbr(profile) ? "1" : "0";
     }
 
+    /**
+     * Case-insensitive quality rank for a profile NAME as found in a shaderpack's
+     * shaders.properties. Returns -1 for names that are not quality tiers at all -
+     * e.g. Bliss ships pseudo-profiles like {@code SHADER_VERSION_LABEL} / {@code
+     * OLD_BLISS_TONEMAP} (tonemap variants) which must never be selected as a quality level.
+     */
+    public static int qualityRank(String name) {
+        if (name == null) return -1;
+        return switch (name.toLowerCase().replace("_", "")) {
+            case "potato" -> 0;
+            case "verylow" -> 1;
+            case "low", "lite" -> 2;
+            case "medium", "med", "normal", "default", "balanced" -> 3;
+            case "high" -> 4;
+            case "veryhigh", "ultrahigh" -> 5;
+            case "ultra" -> 6;
+            case "extreme", "max", "maximum" -> 7;
+            default -> -1;
+        };
+    }
+
+    /**
+     * Resolve the canonical profile onto whatever quality ladder the ACTIVE pack exposes,
+     * matching by rank instead of exact name (Kappa uses {@code Low..Extreme} mixed-case;
+     * Complementary-family uses {@code POTATO..ULTRA}). Ties break toward the LOWER rank -
+     * the pack's standing rule is that tuning must never overload the machine.
+     *
+     * @return the pack's own profile name, or {@code null} when the pack exposes no usable
+     *         quality profiles (then the caller should fall back to direct option writes)
+     */
+    public static String resolvePackProfile(String canonical, Set<String> packProfiles) {
+        if (packProfiles == null || packProfiles.isEmpty()) return null;
+        int target = qualityRank(canonical);
+        if (target < 0) target = qualityRank(MEDIUM);
+        String best = null;
+        int bestDist = Integer.MAX_VALUE;
+        int bestRank = Integer.MAX_VALUE;
+        for (String candidate : packProfiles) {
+            int rank = qualityRank(candidate);
+            if (rank < 0) continue; // pseudo-profile (tonemap/version label) - never select
+            int dist = Math.abs(rank - target);
+            if (dist < bestDist || (dist == bestDist && rank < bestRank)) {
+                best = candidate;
+                bestDist = dist;
+                bestRank = rank;
+            }
+        }
+        return best;
+    }
+
     public static String nearestAvailable(String requested, Set<String> available) {
         if (available == null || available.isEmpty() || available.contains(requested)) {
             return requested;

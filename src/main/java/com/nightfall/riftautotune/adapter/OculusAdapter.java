@@ -3,6 +3,7 @@ package com.nightfall.riftautotune.adapter;
 import com.nightfall.riftautotune.RiftConfig;
 import com.nightfall.riftautotune.core.GraphicsSettings;
 import com.nightfall.riftautotune.core.Knob;
+import com.nightfall.riftautotune.core.ShaderOptionTables;
 import com.nightfall.riftautotune.core.ShaderProfilePolicy;
 import com.nightfall.riftautotune.util.ModCompat;
 import com.nightfall.riftautotune.util.Reflect;
@@ -137,15 +138,21 @@ public final class OculusAdapter implements ConfigAdapter {
         try {
             ShaderPackMetadata metadata = readShaderPackMetadata(pack);
             String profile = ShaderProfilePolicy.profileFor(s);
-            profile = ShaderProfilePolicy.nearestAvailable(profile, metadata.profiles().keySet());
+            // Rank-based resolution: matches Kappa's mixed-case Low..Extreme ladder and rejects
+            // pseudo-profiles (Bliss tonemap/version entries), which exact-name matching selected
+            // by accident before.
+            String packProfile = ShaderProfilePolicy.resolvePackProfile(profile, metadata.profiles().keySet());
 
             Map<String, String> desired = new LinkedHashMap<>();
-            if (!metadata.profiles().isEmpty()) {
-                desired.put("profile", profile);
-                Map<String, String> profileOptions = metadata.profiles().get(profile);
+            if (packProfile != null) {
+                desired.put("profile", packProfile);
+                Map<String, String> profileOptions = metadata.profiles().get(packProfile);
                 if (profileOptions != null) {
                     desired.putAll(profileOptions);
                 }
+            } else if (ShaderOptionTables.PackFamily.detect(pack) == ShaderOptionTables.PackFamily.BLISS) {
+                // Bliss exposes no quality profiles at all - drive its real option keys directly.
+                desired.putAll(ShaderOptionTables.blissOptions(profile));
             }
 
             desired.put("shadowMapResolution", Integer.toString(s.value(Knob.SHADER_SHADOW_RES)));
