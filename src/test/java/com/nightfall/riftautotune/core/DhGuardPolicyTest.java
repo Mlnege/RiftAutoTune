@@ -24,11 +24,21 @@ class DhGuardPolicyTest {
     }
 
     @Test
-    void hostingCapsLodDistanceAndCpu() {
+    void hostingCapsLodDistanceAndPinsCpuToModerate() {
         GraphicsSettings s = settingsWith(4, 2);
         GraphicsSettings out = DhGuardPolicy.clamp(s, SessionMode.HOSTING, true, 2, false);
-        assertEquals(0, out.get(Knob.DH_CPU_LOAD));
+        assertEquals(1, out.get(Knob.DH_CPU_LOAD), "host runs full-bore capped down to moderate");
         assertEquals(2, out.get(Knob.DH_LOD_DISTANCE));
+    }
+
+    @Test
+    void hostingRaisesStarvedCpuSoGenerationNeverStops() {
+        // The Essential-host case: the host is the only machine that can generate LODs for
+        // unexplored terrain, so the guard must FLOOR its CPU load at moderate, never leave it 0.
+        GraphicsSettings s = settingsWith(2, 0);
+        GraphicsSettings out = DhGuardPolicy.clamp(s, SessionMode.HOSTING, true, 2, false);
+        assertEquals(1, out.get(Knob.DH_CPU_LOAD));
+        assertEquals(0, s.get(Knob.DH_CPU_LOAD), "input instance must not be mutated");
     }
 
     @Test
@@ -52,7 +62,8 @@ class DhGuardPolicyTest {
 
     @Test
     void clampReturnsSameInstanceWhenAlreadyCompliant() {
-        GraphicsSettings s = settingsWith(2, 0);
+        // Hosting compliance = distance within cap AND cpu at the moderate pin (1).
+        GraphicsSettings s = settingsWith(2, 1);
         assertSame(s, DhGuardPolicy.clamp(s, SessionMode.HOSTING, true, 2, false));
     }
 

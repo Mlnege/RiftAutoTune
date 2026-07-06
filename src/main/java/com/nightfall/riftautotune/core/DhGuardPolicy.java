@@ -5,12 +5,16 @@ package com.nightfall.riftautotune.core;
  *
  * <p>Three rules, in priority order:</p>
  * <ol>
- *   <li><b>Multiplayer CPU protection</b>: on any non-singleplayer session (remote server or
- *       hosting an open world) the DH CPU-load knob is forced to its minimum. DH LOD generation
- *       competes with the network/server work the machine is already doing, so it must never run
- *       above the low-impact throttle there.</li>
- *   <li><b>Host protection</b>: when this client is also the server (LAN / Essential invite),
- *       the DH LOD distance is additionally capped so the integrated server keeps its headroom.</li>
+ *   <li><b>Remote-client CPU protection</b>: connected to a REMOTE server, the DH CPU-load knob is
+ *       forced to its minimum. A remote client only builds LODs from chunks the server streams to
+ *       it, so extra worker threads buy little and just fight the network/render work.</li>
+ *   <li><b>Host steady generation</b>: when this client is also the server (LAN / Essential
+ *       invite), DH keeps generating CONTINUOUSLY at the moderate level (CPU load pinned to 1 =
+ *       half runtime ratio, cores/4 threads) - never throttled to the starvation minimum, never
+ *       running full-bore over the integrated server. The LOD distance is additionally capped so
+ *       the integrated server keeps its headroom. (The host is the only machine that can generate
+ *       LODs for unexplored terrain; choking it to 1 thread froze distant generation for the whole
+ *       session.)</li>
  *   <li><b>Auto-off</b>: if FPS stays under a floor for a sustained hold while DH is rendering,
  *       DH is switched off entirely for the session (weak machines should not pay for LODs).</li>
  * </ol>
@@ -51,10 +55,18 @@ public final class DhGuardPolicy {
         }
         if (!guardEnabled || !isMultiplayer(mode)) return out;
 
-        if (out.get(Knob.DH_CPU_LOAD) > 0) {
-            out = (out == s ? out.copy() : out).set(Knob.DH_CPU_LOAD, 0);
-        }
-        if (mode == SessionMode.HOSTING) {
+        if (mode == SessionMode.REMOTE_MULTIPLAYER) {
+            // Remote client: minimum CPU. LODs come from server-streamed chunks anyway.
+            if (out.get(Knob.DH_CPU_LOAD) > 0) {
+                out = (out == s ? out.copy() : out).set(Knob.DH_CPU_LOAD, 0);
+            }
+        } else { // HOSTING
+            // Essential/LAN host: pin CPU load to the moderate level so distant generation always
+            // keeps running (floor: never starved to 0) without going full-bore (cap: never 2)
+            // while the integrated server shares the machine.
+            if (out.get(Knob.DH_CPU_LOAD) != 1) {
+                out = (out == s ? out.copy() : out).set(Knob.DH_CPU_LOAD, 1);
+            }
             int cap = Math.max(0, Math.min(hostMaxLodLevel, Knob.DH_LOD_DISTANCE.maxLevel()));
             if (out.get(Knob.DH_LOD_DISTANCE) > cap) {
                 out = (out == s ? out.copy() : out).set(Knob.DH_LOD_DISTANCE, cap);
