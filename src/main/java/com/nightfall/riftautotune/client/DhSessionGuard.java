@@ -81,12 +81,20 @@ public final class DhSessionGuard {
                 RiftConfig.DH_GUARD.get(),
                 RiftConfig.DH_HOST_MAX_LOD_LEVEL.get(),
                 forcedOff);
-        // FORCE_ON also PINS the LOD distance at >= 1: the adaptive optimizer treats DH as the
-        // cheapest visual shed and would otherwise zero it within seconds on a stuttery world
-        // (observed: enabled at 64 chunks, adaptively disabled 23s later). With the pin, the
-        // optimizer sheds other knobs instead and DH stays visible as the user demanded.
-        if (override == UserOverride.FORCE_ON && out.get(Knob.DH_LOD_DISTANCE) == 0) {
-            out = (out == settings ? out.copy() : out).set(Knob.DH_LOD_DISTANCE, 1);
+        // FORCE_ON pins DH so the adaptive optimizer (which treats DH as the cheapest visual shed)
+        // can't zero it. Two floors:
+        //  - LOD distance >= 2 (128 chunks) so there is visibly distant terrain, not the 64-chunk
+        //    minimum that barely extends past vanilla render distance;
+        //  - in SINGLEPLAYER, CPU load >= 1 so LOD generation isn't stuck at the 1-thread/25%
+        //    multiplayer-protection throttle and actually fills in within a reasonable time.
+        // (Multiplayer/hosting keeps DhGuardPolicy's CPU=0 protection - not overridden here.)
+        if (override == UserOverride.FORCE_ON) {
+            if (out.get(Knob.DH_LOD_DISTANCE) < 2) {
+                out = (out == settings ? out.copy() : out).set(Knob.DH_LOD_DISTANCE, 2);
+            }
+            if (mode == SessionMode.SINGLEPLAYER && out.get(Knob.DH_CPU_LOAD) < 1) {
+                out = (out == settings ? out.copy() : out).set(Knob.DH_CPU_LOAD, 1);
+            }
         }
         return out;
     }

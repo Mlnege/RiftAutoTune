@@ -113,6 +113,15 @@ public final class DistantHorizonsAdapter implements ConfigAdapter {
             RiftLog.warn("DH {}: config handle missing - not applied.", label);
             return;
         }
+        // Read-before-write: DH disposes ALL render data on any config write (its
+        // AbstractDelayedConfigTimer fires "Render data cleared..."), so writing an unchanged
+        // value on every apply made LOD generation restart endlessly and never display. Skip the
+        // write entirely when the value already matches.
+        Object current = Reflect.invoke(Reflect.methodByName(cfgValue.getClass(), "getValue", 0), cfgValue);
+        if (current != null && current.equals(value)) {
+            RiftLog.debug("DH {} already {} - no write (avoids render-data reset).", label, current);
+            return;
+        }
         Method setValue = Reflect.methodByName(cfgValue.getClass(), "setValue", 1);
         Object accepted = Reflect.invoke(setValue, cfgValue, value);
         Object readback = Reflect.invoke(Reflect.methodByName(cfgValue.getClass(), "getValue", 0), cfgValue);
