@@ -66,13 +66,24 @@ public final class OculusAdapter implements ConfigAdapter {
         apply(settings, false);
     }
 
+    /**
+     * When false, RiftAutoTune enables/selects the pack but does NOT rewrite the pack's per-option
+     * {@code <pack>.txt}. Set by {@code /riftautotune shaders on} so the user's own shader menu
+     * settings (Bliss sky/atmosphere etc.) are never stomped down to a tuned/potato profile.
+     */
+    private boolean manageOptions = true;
+
+    public void setManageOptions(boolean manage) {
+        this.manageOptions = manage;
+    }
+
     public void apply(GraphicsSettings settings, boolean allowShaderReload) {
         boolean shadersOn = settings.get(Knob.SHADERS) > 0;
         String pack = resolvePackName();
 
         boolean oculusChanged = writeOculusProperties(shadersOn, pack);
         boolean shaderChanged = false;
-        if (shadersOn && pack != null) {
+        if (shadersOn && pack != null && manageOptions) {
             shaderChanged = writeShaderOverrides(pack, settings);
         }
         boolean reload = allowShaderReload && (oculusChanged || shaderChanged);

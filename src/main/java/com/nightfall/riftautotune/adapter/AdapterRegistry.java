@@ -56,6 +56,16 @@ public final class AdapterRegistry {
         }
     }
 
+    /** When false, the Oculus adapter stops rewriting the pack's per-option .txt (user manual mode). */
+    public void setManageShaderOptions(boolean manage) {
+        for (ConfigAdapter a : adapters) {
+            if (a instanceof OculusAdapter oculus) {
+                oculus.setManageOptions(manage);
+                return;
+            }
+        }
+    }
+
     /** Reload the active shaderpack if shaders are on (so DH LOD compiles in) - no enable change. */
     public void reloadShaderForDh() {
         for (ConfigAdapter a : adapters) {

@@ -386,6 +386,9 @@ public final class RiftClientManager {
     public void commandShaderOverride(ShaderOverride mode) {
         shaderOverride = mode;
         adaptive.setShaderLocked(mode != ShaderOverride.AUTO);
+        // FORCE_ON = full manual control: don't let RiftAutoTune rewrite the pack's option file,
+        // so the user's own Bliss/shader menu settings are preserved exactly.
+        adapters.setManageShaderOptions(mode != ShaderOverride.FORCE_ON);
         RiftExecutor.onRenderThread(() -> {
             if (current == null) return;
             current = pinShaders(current);
