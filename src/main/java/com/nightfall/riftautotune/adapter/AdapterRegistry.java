@@ -37,4 +37,22 @@ public final class AdapterRegistry {
             }
         }
     }
+
+    /**
+     * Apply ONLY the Distant Horizons adapter. Used by {@code /riftautotune dh on|off} so toggling
+     * DH never runs the Oculus adapter - which would re-write the shader on/off state and yank the
+     * user's manually-enabled shaders every time DH is touched.
+     */
+    public void applyDhOnly(GraphicsSettings settings) {
+        for (ConfigAdapter a : adapters) {
+            if (a instanceof DistantHorizonsAdapter && a.isAvailable()) {
+                try {
+                    a.apply(settings);
+                } catch (Throwable t) {
+                    RiftLog.error("DH-only apply failed", t);
+                }
+                return;
+            }
+        }
+    }
 }

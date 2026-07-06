@@ -278,7 +278,7 @@ public final class RiftClientManager {
     }
 
     private void applyResolved(GraphicsSettings settings) {
-        GraphicsSettings clamped = dhGuard.clamp(settings);
+        GraphicsSettings clamped = pinShaders(dhGuard.clamp(settings));
         current = clamped;
         adapters.applyAll(clamped);
     }
@@ -363,14 +363,42 @@ public final class RiftClientManager {
         dhGuard.setOverride(mode);
         RiftExecutor.onRenderThread(() -> {
             if (current == null) return;
-            GraphicsSettings next = current;
-            if (mode == DhSessionGuard.UserOverride.FORCE_ON
-                    && dhAvailable && next.get(Knob.DH_LOD_DISTANCE) == 0) {
-                // Re-enable at a modest distance; the adaptive loop tunes it from there.
-                next = next.copy().set(Knob.DH_LOD_DISTANCE, 2);
-            }
-            applyResolved(next);
+            // Clamp updates DH knobs only (FORCE_ON floors distance/threads); then apply ONLY the
+            // DH adapter so shaders/vanilla settings are left exactly as the user set them. Running
+            // the full adapter stack here was re-writing the shader on/off state and disabling the
+            // user's manually-enabled shaders every time DH was toggled.
+            current = dhGuard.clamp(current);
+            adapters.applyDhOnly(current);
         });
+    }
+
+    /**
+     * /riftautotune shaders &lt;on|off|auto&gt; - manual shader lock. ON keeps shaders enabled and
+     * stops the adaptive loop from disabling them (it still tunes shader sub-options); OFF pins
+     * them off; AUTO returns control to the tuner.
+     */
+    public void commandShaderOverride(ShaderOverride mode) {
+        shaderOverride = mode;
+        adaptive.setShaderLocked(mode != ShaderOverride.AUTO);
+        RiftExecutor.onRenderThread(() -> {
+            if (current == null) return;
+            current = pinShaders(current);
+            // Full apply WITH one reload so the shader state change actually takes effect now.
+            adapters.applyAll(current, true);
+        });
+    }
+
+    /** Shader master knob lock driven by the /riftautotune shaders command. */
+    public enum ShaderOverride { AUTO, FORCE_ON, FORCE_OFF }
+
+    private ShaderOverride shaderOverride = ShaderOverride.AUTO;
+
+    private GraphicsSettings pinShaders(GraphicsSettings s) {
+        if (shaderOverride == ShaderOverride.AUTO || s == null) return s;
+        int want = shaderOverride == ShaderOverride.FORCE_ON ? 1 : 0;
+        if (shaderOverride == ShaderOverride.FORCE_ON && !shadersAvailable) return s;
+        if (s.get(Knob.SHADERS) == want) return s;
+        return s.copy().set(Knob.SHADERS, want);
     }
 
     // -------------------------------------------------------------- getters for HUD

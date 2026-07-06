@@ -38,6 +38,7 @@ public final class AdaptiveController {
     private boolean dhAvailable;
 
     private boolean paused = false;
+    private boolean shaderLocked = false;
     private long belowSince = 0L;
     private long aboveSince = 0L;
     private long lastChange = 0L;
@@ -48,6 +49,11 @@ public final class AdaptiveController {
         this.hardware = hardware;
         this.shadersAvailable = shadersAvailable;
         this.dhAvailable = dhAvailable;
+    }
+
+    /** When true, the loop never toggles the SHADERS master (user pinned shaders on/off). */
+    public void setShaderLocked(boolean locked) {
+        this.shaderLocked = locked;
     }
 
     public void setPaused(boolean paused) {
@@ -131,6 +137,7 @@ public final class AdaptiveController {
         double beforeVis = cm.visualScore(current);
 
         for (Knob k : Knob.values()) {
+            if (shaderLocked && k == Knob.SHADERS) continue; // user pinned shaders; don't toggle
             int lvl = current.get(k);
             if (down) {
                 if (lvl <= 0) continue;

@@ -44,6 +44,13 @@ public final class RiftCommands {
                                 "DH forced OFF."))
                         .then(dhNode(mgr, "auto", com.nightfall.riftautotune.client.DhSessionGuard.UserOverride.AUTO,
                                 "DH guard back to automatic.")))
+                .then(Commands.literal("shaders")
+                        .then(shaderNode(mgr, "on", RiftClientManager.ShaderOverride.FORCE_ON,
+                                "Shaders forced ON (RiftAutoTune will not disable them)."))
+                        .then(shaderNode(mgr, "off", RiftClientManager.ShaderOverride.FORCE_OFF,
+                                "Shaders forced OFF."))
+                        .then(shaderNode(mgr, "auto", RiftClientManager.ShaderOverride.AUTO,
+                                "Shader control back to automatic.")))
                 .then(Commands.literal("profile")
                         .then(tierNode(mgr, "minimum", HardwareTier.MINIMUM))
                         .then(tierNode(mgr, "low", HardwareTier.LOW))
@@ -61,6 +68,15 @@ public final class RiftCommands {
             com.nightfall.riftautotune.client.DhSessionGuard.UserOverride mode, String message) {
         return Commands.literal(name).executes(ctx -> {
             mgr.commandDhOverride(mode);
+            feedback(ctx, message);
+            return 1;
+        });
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> shaderNode(
+            RiftClientManager mgr, String name, RiftClientManager.ShaderOverride mode, String message) {
+        return Commands.literal(name).executes(ctx -> {
+            mgr.commandShaderOverride(mode);
             feedback(ctx, message);
             return 1;
         });
