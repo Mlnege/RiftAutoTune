@@ -92,7 +92,10 @@ public final class DhSessionGuard {
             if (out.get(Knob.DH_LOD_DISTANCE) < 2) {
                 out = (out == settings ? out.copy() : out).set(Knob.DH_LOD_DISTANCE, 2);
             }
-            if (mode == SessionMode.SINGLEPLAYER && out.get(Knob.DH_CPU_LOAD) < 1) {
+            // Explicit /riftautotune dh on = the user wants DH generating. Give it real threads
+            // even if the session was (mis)detected as multiplayer - a manual override outranks the
+            // automatic host-protection throttle. Only the power user runs this command.
+            if (out.get(Knob.DH_CPU_LOAD) < 1) {
                 out = (out == settings ? out.copy() : out).set(Knob.DH_CPU_LOAD, 1);
             }
         }
@@ -161,13 +164,23 @@ public final class DhSessionGuard {
     private SessionMode detectMode(Minecraft mc) {
         if (mc == null || mc.level == null) return SessionMode.SINGLEPLAYER;
         IntegratedServer integrated = mc.getSingleplayerServer();
-        if (integrated == null) return SessionMode.REMOTE_MULTIPLAYER;
-        try {
-            if (integrated.isPublished() || integrated.getPlayerCount() > 1) {
-                return SessionMode.HOSTING;
+        if (integrated != null) {
+            try {
+                if (integrated.isPublished() || integrated.getPlayerCount() > 1) {
+                    return SessionMode.HOSTING;
+                }
+            } catch (Throwable ignored) {
             }
-        } catch (Throwable t) {
-            // Defensive: any server-state read hiccup falls back to singleplayer handling.
+            return SessionMode.SINGLEPLAYER;
+        }
+        // No integrated server handle. Only treat this as remote multiplayer if we are ACTUALLY
+        // connected to a remote server. getSingleplayerServer() can transiently return null in
+        // singleplayer (dimension changes, Essential's session wrapper) - the old code then
+        // false-detected REMOTE_MULTIPLAYER and throttled DH to 1 thread. getCurrentServer() is
+        // non-null only for a real remote/LAN server connection.
+        try {
+            if (mc.getCurrentServer() != null) return SessionMode.REMOTE_MULTIPLAYER;
+        } catch (Throwable ignored) {
         }
         return SessionMode.SINGLEPLAYER;
     }
