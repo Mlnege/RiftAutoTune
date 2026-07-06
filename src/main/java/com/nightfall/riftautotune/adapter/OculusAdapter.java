@@ -285,6 +285,24 @@ public final class OculusAdapter implements ConfigAdapter {
         return profiles;
     }
 
+    /**
+     * Recompile the active shaderpack IF shaders are currently enabled, without changing the
+     * enable state. Needed after DH is toggled on: Iris only defines the {@code DISTANT_HORIZONS}
+     * shader macro at COMPILE time when DH is active, so a pack compiled while DH was off renders
+     * no LOD terrain until it is reloaded with DH on.
+     */
+    public void reloadIfShadersEnabled() {
+        try {
+            Properties p = readProps(CONFIG_DIR.resolve("oculus.properties"));
+            if (Boolean.parseBoolean(p.getProperty("enableShaders", "false"))) {
+                triggerReload();
+                RiftLog.info("Shader reloaded so DH LOD compiles into the active pack.");
+            }
+        } catch (Throwable t) {
+            RiftLog.debug("reloadIfShadersEnabled failed: {}", t.toString());
+        }
+    }
+
     /** Try known Iris/Oculus reload entry points reflectively. Only called from explicit flows. */
     private void triggerReload() {
         Object api = Reflect.invokeStatic(Reflect.method(

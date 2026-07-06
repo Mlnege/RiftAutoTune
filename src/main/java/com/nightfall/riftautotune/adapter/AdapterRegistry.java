@@ -55,4 +55,18 @@ public final class AdapterRegistry {
             }
         }
     }
+
+    /** Reload the active shaderpack if shaders are on (so DH LOD compiles in) - no enable change. */
+    public void reloadShaderForDh() {
+        for (ConfigAdapter a : adapters) {
+            if (a instanceof OculusAdapter oculus && a.isAvailable()) {
+                try {
+                    oculus.reloadIfShadersEnabled();
+                } catch (Throwable t) {
+                    RiftLog.error("shader reload for DH failed", t);
+                }
+                return;
+            }
+        }
+    }
 }

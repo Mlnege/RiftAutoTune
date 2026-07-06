@@ -369,6 +369,12 @@ public final class RiftClientManager {
             // user's manually-enabled shaders every time DH was toggled.
             current = dhGuard.clamp(current);
             adapters.applyDhOnly(current);
+            // If shaders are on, reload the pack so the DH LOD compiles in (Iris defines the
+            // DISTANT_HORIZONS macro only at compile time with DH active). Does NOT change the
+            // shader enable state, so the user's shaders stay on.
+            if (mode == DhSessionGuard.UserOverride.FORCE_ON) {
+                adapters.reloadShaderForDh();
+            }
         });
     }
 

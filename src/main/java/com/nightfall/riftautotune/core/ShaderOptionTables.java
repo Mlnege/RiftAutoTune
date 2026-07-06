@@ -62,6 +62,10 @@ public final class ShaderOptionTables {
         m.put("SSGI", rank >= 5 ? "true" : "false");
         m.put("SCREENSPACE_CONTACT_SHADOWS", rank >= 4 ? "true" : "false");
         m.put("ambientOcclusionLevel", rank <= 1 ? "0.0" : rank == 2 ? "0.5" : "1.0");
+        // Bliss's DH integration master toggle. Its shaders.properties gates DH shadows behind it,
+        // and enabling it keeps DH LOD terrain properly lit/shadowed instead of flat. Harmless when
+        // DH is absent (the whole DH block is gated behind the DISTANT_HORIZONS compile define).
+        m.put("DISTANT_HORIZONS_SHADOWMAP", "true");
         return m;
     }
 }
