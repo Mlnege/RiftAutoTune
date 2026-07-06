@@ -77,10 +77,18 @@ public final class DhSessionGuard {
         if (!dhAvailable) return settings;
         boolean forcedOff = override == UserOverride.FORCE_OFF
                 || (autoDisabled && override != UserOverride.FORCE_ON);
-        return DhGuardPolicy.clamp(settings, mode,
+        GraphicsSettings out = DhGuardPolicy.clamp(settings, mode,
                 RiftConfig.DH_GUARD.get(),
                 RiftConfig.DH_HOST_MAX_LOD_LEVEL.get(),
                 forcedOff);
+        // FORCE_ON also PINS the LOD distance at >= 1: the adaptive optimizer treats DH as the
+        // cheapest visual shed and would otherwise zero it within seconds on a stuttery world
+        // (observed: enabled at 64 chunks, adaptively disabled 23s later). With the pin, the
+        // optimizer sheds other knobs instead and DH stays visible as the user demanded.
+        if (override == UserOverride.FORCE_ON && out.get(Knob.DH_LOD_DISTANCE) == 0) {
+            out = (out == settings ? out.copy() : out).set(Knob.DH_LOD_DISTANCE, 1);
+        }
+        return out;
     }
 
     /**
