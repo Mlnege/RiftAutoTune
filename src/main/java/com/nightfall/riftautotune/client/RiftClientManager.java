@@ -361,6 +361,7 @@ public final class RiftClientManager {
     /** /riftautotune dh &lt;on|off|auto&gt; - manual override for the DH session guard. */
     public void commandDhOverride(DhSessionGuard.UserOverride mode) {
         dhGuard.setOverride(mode);
+        refreshManualHold();
         RiftExecutor.onRenderThread(() -> {
             if (current == null) return;
             // Clamp updates DH knobs only (FORCE_ON floors distance/threads); then apply ONLY the
@@ -386,6 +387,7 @@ public final class RiftClientManager {
     public void commandShaderOverride(ShaderOverride mode) {
         shaderOverride = mode;
         adaptive.setShaderLocked(mode != ShaderOverride.AUTO);
+        refreshManualHold();
         // FORCE_ON = full manual control: don't let RiftAutoTune rewrite the pack's option file,
         // so the user's own Bliss/shader menu settings are preserved exactly.
         adapters.setManageShaderOptions(mode != ShaderOverride.FORCE_ON);
@@ -401,6 +403,13 @@ public final class RiftClientManager {
     public enum ShaderOverride { AUTO, FORCE_ON, FORCE_OFF }
 
     private ShaderOverride shaderOverride = ShaderOverride.AUTO;
+
+    /** Suspend adaptive re-tuning whenever the user is driving DH or shaders manually. */
+    private void refreshManualHold() {
+        boolean manual = shaderOverride != ShaderOverride.AUTO
+                || dhGuard.override() != DhSessionGuard.UserOverride.AUTO;
+        adaptive.setManualHold(manual);
+    }
 
     private GraphicsSettings pinShaders(GraphicsSettings s) {
         if (shaderOverride == ShaderOverride.AUTO || s == null) return s;

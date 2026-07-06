@@ -39,6 +39,7 @@ public final class AdaptiveController {
 
     private boolean paused = false;
     private boolean shaderLocked = false;
+    private boolean manualHold = false;
     private long belowSince = 0L;
     private long aboveSince = 0L;
     private long lastChange = 0L;
@@ -54,6 +55,15 @@ public final class AdaptiveController {
     /** When true, the loop never toggles the SHADERS master (user pinned shaders on/off). */
     public void setShaderLocked(boolean locked) {
         this.shaderLocked = locked;
+    }
+
+    /**
+     * Fully suspend the adaptive loop while the user is driving graphics manually (any
+     * {@code /riftautotune dh|shaders} override active). This is why "dh on then it keeps lowering
+     * DH" happened: the loop kept re-tuning underneath the user. Manual command = hands off.
+     */
+    public void setManualHold(boolean hold) {
+        this.manualHold = hold;
     }
 
     public void setPaused(boolean paused) {
@@ -79,7 +89,7 @@ public final class AdaptiveController {
      * @param apply   callback that applies a new settings set (adapters, on render thread)
      */
     public void onRenderFrame(GraphicsSettings current, Consumer<GraphicsSettings> apply) {
-        if (!RiftConfig.ENABLE_ADAPTIVE.get() || paused || hardware == null) return;
+        if (!RiftConfig.ENABLE_ADAPTIVE.get() || paused || manualHold || hardware == null) return;
 
         double frame = monitor.tick();
         if (frame < 0 || monitor.sampleCount() < WINDOW_FRAMES) return; // need a full window
