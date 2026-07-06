@@ -29,6 +29,8 @@ public final class DistantHorizonsAdapter implements ConfigAdapter {
     private static final String DELAYED = "com.seibel.distanthorizons.api.DhApi$Delayed";
     private static final String VERTICAL_QUALITY_ENUM =
             "com.seibel.distanthorizons.api.enums.config.EDhApiVerticalQuality";
+    private static final String TRANSPARENCY_ENUM =
+            "com.seibel.distanthorizons.api.enums.rendering.EDhApiTransparency";
 
     @Override
     public String name() {
@@ -66,6 +68,13 @@ public final class DistantHorizonsAdapter implements ConfigAdapter {
             setCfg(call0(graphics, "chunkRenderDistance"), Integer.valueOf(lodChunks), "chunkRenderDistance");
             Object vq = Reflect.enumConst(VERTICAL_QUALITY_ENUM, verticalQualityName(verticalQuality));
             if (vq != null) setCfg(call0(graphics, "verticalQuality"), vq, "verticalQuality");
+
+            // Force transparency = COMPLETE. When it is off (which DH silently does if the quality
+            // preset drops below MEDIUM), Iris+DH renders the world onto the sky with Bliss and
+            // other shaders (the well-known "world drawn on the sky" bug). Re-asserting COMPLETE on
+            // every apply keeps it fixed even if a preset change tried to disable it.
+            Object complete = Reflect.enumConst(TRANSPARENCY_ENUM, "COMPLETE");
+            if (complete != null) setCfg(call0(graphics, "transparency"), complete, "transparency");
         }
 
         // CPU throttle - the key lever for "DH crushes the CPU". 0..2 -> 25% / 50% / 100% runtime.
