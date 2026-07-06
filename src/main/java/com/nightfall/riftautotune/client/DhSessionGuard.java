@@ -81,16 +81,18 @@ public final class DhSessionGuard {
                 RiftConfig.DH_GUARD.get(),
                 RiftConfig.DH_HOST_MAX_LOD_LEVEL.get(),
                 forcedOff);
-        // FORCE_ON pins DH so the adaptive optimizer (which treats DH as the cheapest visual shed)
-        // can't zero it. Two floors:
-        //  - LOD distance >= 2 (128 chunks) so there is visibly distant terrain, not the 64-chunk
-        //    minimum that barely extends past vanilla render distance;
-        //  - in SINGLEPLAYER, CPU load >= 1 so LOD generation isn't stuck at the 1-thread/25%
-        //    multiplayer-protection throttle and actually fills in within a reasonable time.
-        // (Multiplayer/hosting keeps DhGuardPolicy's CPU=0 protection - not overridden here.)
+        // FORCE_ON pins DH LOD RENDERING to fixed, solid values - completely independent of
+        // whatever the benchmark-derived profile says (a benchmark taken during heavy chunk-gen
+        // load can misjudge this to LOW). This is a PIN, not a floor: it overwrites even if the
+        // profile already had a value, so the render quality never drifts with FPS or re-benchmarks.
+        // Distant Horizons WORLD GENERATION (config/DistantHorizons.toml enableDistantGeneration)
+        // is a separate system and is never touched here.
         if (override == UserOverride.FORCE_ON) {
-            if (out.get(Knob.DH_LOD_DISTANCE) < 2) {
-                out = (out == settings ? out.copy() : out).set(Knob.DH_LOD_DISTANCE, 2);
+            if (out.get(Knob.DH_LOD_DISTANCE) != 3) { // 256 chunks - clearly-distant fixed default
+                out = (out == settings ? out.copy() : out).set(Knob.DH_LOD_DISTANCE, 3);
+            }
+            if (out.get(Knob.DH_VERTICAL_QUALITY) != 2) { // HIGH - never the LOW/cardboard look
+                out = (out == settings ? out.copy() : out).set(Knob.DH_VERTICAL_QUALITY, 2);
             }
             // Explicit /riftautotune dh on = the user wants DH generating. Give it real threads
             // even if the session was (mis)detected as multiplayer - a manual override outranks the
