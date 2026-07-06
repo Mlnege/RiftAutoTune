@@ -358,10 +358,14 @@ public final class RiftClientManager {
         return out;
     }
 
-    /** /riftautotune dh &lt;on|off|auto&gt; - manual override for the DH session guard. */
+    /** /riftautotune dh &lt;on|off|auto|ignore&gt; - manual override for the DH session guard. */
     public void commandDhOverride(DhSessionGuard.UserOverride mode) {
         dhGuard.setOverride(mode);
         refreshManualHold();
+        // IGNORE = true hands-off for isolating a suspected DH-mod bug: never call the DH adapter
+        // again (not even once more here) so DH keeps whatever the player sets in its own menu.
+        adapters.setDhHandsOff(mode == DhSessionGuard.UserOverride.IGNORE);
+        if (mode == DhSessionGuard.UserOverride.IGNORE) return;
         RiftExecutor.onRenderThread(() -> {
             if (current == null) return;
             // Clamp updates DH knobs only (FORCE_ON floors distance/threads); then apply ONLY the

@@ -24,7 +24,7 @@ import java.util.function.Consumer;
 public final class DhSessionGuard {
 
     /** Manual override from /riftautotune dh <on|off|auto>. */
-    public enum UserOverride { AUTO, FORCE_ON, FORCE_OFF }
+    public enum UserOverride { AUTO, FORCE_ON, FORCE_OFF, IGNORE }
 
     private static final int MODE_CHECK_INTERVAL_FRAMES = 40;
     private static final int WINDOW_FRAMES = 240;
@@ -75,6 +75,11 @@ public final class DhSessionGuard {
     /** Route EVERY settings apply through this so no code path can out-vote the guard. */
     public GraphicsSettings clamp(GraphicsSettings settings) {
         if (!dhAvailable) return settings;
+        // IGNORE = true hands-off. Used to isolate DH-the-mod as a variable when diagnosing a
+        // suspected DH/compat bug: RiftAutoTune computes nothing and (via AdapterRegistry's
+        // dh-hands-off flag) never calls the DH adapter, so whatever the player sets in DH's own
+        // in-game menu is exactly what runs, unmodified.
+        if (override == UserOverride.IGNORE) return settings;
         boolean forcedOff = override == UserOverride.FORCE_OFF
                 || (autoDisabled && override != UserOverride.FORCE_ON);
         GraphicsSettings out = DhGuardPolicy.clamp(settings, mode,

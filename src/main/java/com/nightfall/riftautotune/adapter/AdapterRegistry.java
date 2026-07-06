@@ -15,12 +15,29 @@ public final class AdapterRegistry {
             new DistantHorizonsAdapter()
     );
 
+    /**
+     * True hands-off for Distant Horizons: skip the adapter entirely (not even a renderingEnabled
+     * write) so whatever the player sets in DH's own in-game menu is untouched. Set by
+     * {@code /riftautotune dh ignore} to isolate DH-the-mod as a variable when a DH/compat bug is
+     * suspected, separate from FORCE_OFF (which actively disables rendering) or AUTO (which still
+     * manages DH via the guard/adaptive loop).
+     */
+    private volatile boolean dhHandsOff = false;
+
+    public void setDhHandsOff(boolean handsOff) {
+        this.dhHandsOff = handsOff;
+    }
+
     public void applyAll(GraphicsSettings settings) {
         applyAll(settings, false);
     }
 
     public void applyAll(GraphicsSettings settings, boolean allowShaderReload) {
         for (ConfigAdapter a : adapters) {
+            if (dhHandsOff && a instanceof DistantHorizonsAdapter) {
+                RiftLog.debug("skip adapter {} (dh hands-off)", a.name());
+                continue;
+            }
             if (!a.isAvailable()) {
                 RiftLog.debug("skip adapter {} (unavailable)", a.name());
                 continue;
@@ -44,6 +61,10 @@ public final class AdapterRegistry {
      * user's manually-enabled shaders every time DH is touched.
      */
     public void applyDhOnly(GraphicsSettings settings) {
+        if (dhHandsOff) {
+            RiftLog.debug("dh-only apply skipped (dh hands-off)");
+            return;
+        }
         for (ConfigAdapter a : adapters) {
             if (a instanceof DistantHorizonsAdapter && a.isAvailable()) {
                 try {

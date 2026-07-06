@@ -43,7 +43,9 @@ public final class RiftCommands {
                         .then(dhNode(mgr, "off", com.nightfall.riftautotune.client.DhSessionGuard.UserOverride.FORCE_OFF,
                                 "DH forced OFF."))
                         .then(dhNode(mgr, "auto", com.nightfall.riftautotune.client.DhSessionGuard.UserOverride.AUTO,
-                                "DH guard back to automatic.")))
+                                "DH guard back to automatic."))
+                        .then(dhNode(mgr, "ignore", com.nightfall.riftautotune.client.DhSessionGuard.UserOverride.IGNORE,
+                                "RiftAutoTune will not touch DH at all - use DH's own menu to configure it.")))
                 .then(Commands.literal("shaders")
                         .then(shaderNode(mgr, "on", RiftClientManager.ShaderOverride.FORCE_ON,
                                 "Shaders forced ON (RiftAutoTune will not disable them)."))
