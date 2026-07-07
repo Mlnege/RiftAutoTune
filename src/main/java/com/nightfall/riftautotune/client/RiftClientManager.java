@@ -3,6 +3,8 @@ package com.nightfall.riftautotune.client;
 import com.nightfall.riftautotune.RiftConfig;
 import com.nightfall.riftautotune.adapter.AdapterRegistry;
 import com.nightfall.riftautotune.adapter.SuperResolutionAdapter;
+import com.nightfall.riftautotune.adapter.VoxyAdapter;
+import com.nightfall.riftautotune.core.VoxyTuningPolicy;
 import com.nightfall.riftautotune.client.gui.ResultsHud;
 import com.nightfall.riftautotune.client.gui.ShaderConsentScreen;
 import com.nightfall.riftautotune.command.RiftCommands;
@@ -40,6 +42,7 @@ public final class RiftClientManager {
     private final BenchmarkHarness benchmark = new BenchmarkHarness();
     private final AdaptiveController adaptive = new AdaptiveController();
     private final SuperResolutionAdapter superRes = new SuperResolutionAdapter();
+    private final VoxyAdapter voxy = new VoxyAdapter();
     private final DhSessionGuard dhGuard = new DhSessionGuard();
     private final com.nightfall.riftautotune.adapter.C2meAdapter c2me =
             new com.nightfall.riftautotune.adapter.C2meAdapter();
@@ -281,6 +284,25 @@ public final class RiftClientManager {
         GraphicsSettings clamped = pinShaders(dhGuard.clamp(settings));
         current = clamped;
         adapters.applyAll(clamped);
+        applyVoxy();
+    }
+
+    /**
+     * Voxy policy: render distance stays pinned (config, default 256 chunks) while worker threads
+     * follow the benchmark (cpu-bound -> fewer) and the session mode (host builds LODs, remote
+     * clients spend no CPU). Runs after every resolved apply, so it naturally re-fires on
+     * benchmark completion and on the guard's session-mode changes; the adapter's
+     * read-before-write makes the repeat calls free.
+     */
+    private void applyVoxy() {
+        if (!RiftConfig.ENABLE_VOXY_TUNING.get() || !voxy.isAvailable()) return;
+        boolean cpuBound = lastResult != null && lastResult.cpuBound();
+        int cores = hardware != null ? hardware.cpuThreads : Runtime.getRuntime().availableProcessors();
+        voxy.apply(VoxyTuningPolicy.compute(
+                dhGuard.sessionMode(), cores, cpuBound,
+                RiftConfig.VOXY_RENDER_DISTANCE_CHUNKS.get(),
+                RiftConfig.VOXY_REMOTE_CPU_OFF.get(),
+                RiftConfig.VOXY_MAX_THREADS.get()));
     }
 
     private void forceAvailability(GraphicsSettings s) {
@@ -352,6 +374,9 @@ public final class RiftClientManager {
         out.add("Adaptive: " + (RiftConfig.ENABLE_ADAPTIVE.get() ? "on" : "off")
                 + (adaptive.isPaused() ? " (paused)" : ""));
         out.add(dhGuard.statusLine());
+        out.add("Voxy: " + (voxy.isAvailable()
+                ? RiftConfig.VOXY_RENDER_DISTANCE_CHUNKS.get() + " chunks pinned, mode " + dhGuard.sessionMode()
+                : "absent"));
         out.add("C2ME: " + (c2me.isAvailable()
                 ? (c2meLastWritten > 0 ? c2meLastWritten + " threads (next launch)" : "installed, not yet tuned")
                 : "absent"));

@@ -55,6 +55,11 @@ public final class DhSessionGuard {
         return override;
     }
 
+    /** Current session mode (also drives the Voxy policy - one detector, two consumers). */
+    public SessionMode sessionMode() {
+        return mode;
+    }
+
     /** Called on logout: session-scoped state resets so the next world re-evaluates cleanly. */
     public void onSessionEnd() {
         autoDisabled = false;

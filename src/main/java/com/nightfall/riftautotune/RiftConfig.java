@@ -24,6 +24,11 @@ public final class RiftConfig {
     public static final ForgeConfigSpec.BooleanValue ENABLE_C2ME_TUNING;
     public static final ForgeConfigSpec.IntValue C2ME_MAX_PARALLELISM;
 
+    public static final ForgeConfigSpec.BooleanValue ENABLE_VOXY_TUNING;
+    public static final ForgeConfigSpec.IntValue VOXY_RENDER_DISTANCE_CHUNKS;
+    public static final ForgeConfigSpec.BooleanValue VOXY_REMOTE_CPU_OFF;
+    public static final ForgeConfigSpec.IntValue VOXY_MAX_THREADS;
+
     public static final ForgeConfigSpec.BooleanValue DH_GUARD;
     public static final ForgeConfigSpec.IntValue DH_HOST_MAX_LOD_LEVEL;
     public static final ForgeConfigSpec.BooleanValue DH_AUTO_OFF;
@@ -79,6 +84,27 @@ public final class RiftConfig {
         C2ME_MAX_PARALLELISM = b.comment(
                         "Hard cap for C2ME worker threads. 0 = automatic (cores - 2).")
                 .defineInRange("c2meMaxParallelism", 0, 0, 64);
+
+        b.pop();
+
+        b.comment("Voxy (LOD renderer) tuning - pinned render distance, benchmark-driven threads.")
+                .push("voxy");
+
+        ENABLE_VOXY_TUNING = b.comment(
+                        "Manage Voxy when it is installed: pin its render distance and size its",
+                        "worker threads from the benchmark instead of Voxy's cores*2/1.5 default.")
+                .define("enableVoxyTuning", true);
+        VOXY_RENDER_DISTANCE_CHUNKS = b.comment(
+                        "Voxy render distance to hold in EVERY session mode, in chunks.",
+                        "Never lowered by the adaptive optimizer.")
+                .defineInRange("voxyRenderDistanceChunks", 256, 32, 2048);
+        VOXY_REMOTE_CPU_OFF = b.comment(
+                        "On a remote multiplayer client (not the host), stop Voxy from building",
+                        "LODs entirely (ingest off, 1 worker). Existing LODs still render.")
+                .define("voxyRemoteCpuOff", true);
+        VOXY_MAX_THREADS = b.comment(
+                        "Hard cap for Voxy worker threads. 0 = automatic (cores / 2).")
+                .defineInRange("voxyMaxThreads", 0, 0, 64);
 
         b.pop();
 
