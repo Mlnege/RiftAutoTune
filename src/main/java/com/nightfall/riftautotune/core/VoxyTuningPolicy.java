@@ -36,16 +36,42 @@ public final class VoxyTuningPolicy {
     }
 
     /**
-     * @param pinnedRenderDistanceChunks render distance to hold in ALL modes (chunks, e.g. 256)
+     * RAM preset: caps the pinned render distance on smaller machines. Voxy's geometry buffers,
+     * ingest queues and storage cache all scale with the visible area, and its geometry capacity
+     * is hardcoded - render distance is the one real memory lever. A 16 GB machine also carries
+     * Windows + the 10 GB-heap client, so off-heap headroom is thin.
+     */
+    public static int ramDistanceCapChunks(int systemRamMb) {
+        if (systemRamMb <= 0) return 2048;      // unknown -> don't cap (benchmark machines report real values)
+        if (systemRamMb >= 28_000) return 2048; // 32 GB+: effectively uncapped
+        if (systemRamMb >= 20_000) return 256;  // 24 GB
+        if (systemRamMb >= 12_000) return 128;  // 16 GB - the smooth-on-16GB preset
+        return 64;                              // 8 GB
+    }
+
+    /** RAM preset: small machines also get fewer ingest workers (less native/queue churn). */
+    public static int ramThreadCap(int systemRamMb) {
+        if (systemRamMb <= 0 || systemRamMb >= 28_000) return Integer.MAX_VALUE;
+        if (systemRamMb >= 20_000) return 6;
+        if (systemRamMb >= 12_000) return 3;    // 16 GB
+        return 2;                               // 8 GB
+    }
+
+    /**
+     * @param pinnedRenderDistanceChunks render distance to hold in ALL modes (chunks, e.g. 256);
+     *                                   the RAM preset may cap it on smaller machines
      * @param remoteCpuOff               when true, a remote-multiplayer client builds no LODs
      * @param maxThreadsCap              hard cap from config; 0 = automatic (cores / 2)
+     * @param systemRamMb                total system RAM; drives the small-machine preset
      */
     public static VoxySettings compute(SessionMode mode, int cpuThreads, boolean cpuBound,
                                        int pinnedRenderDistanceChunks, boolean remoteCpuOff,
-                                       int maxThreadsCap) {
-        float srd = chunksToSections(pinnedRenderDistanceChunks);
+                                       int maxThreadsCap, int systemRamMb) {
+        int distance = Math.min(pinnedRenderDistanceChunks, ramDistanceCapChunks(systemRamMb));
+        float srd = chunksToSections(distance);
         int cores = Math.max(1, cpuThreads);
         int cap = maxThreadsCap > 0 ? maxThreadsCap : Math.max(1, cores / 2);
+        cap = Math.min(cap, ramThreadCap(systemRamMb));
 
         if (mode == SessionMode.REMOTE_MULTIPLAYER && remoteCpuOff) {
             // Not the host: render existing LODs but never spend CPU building new ones.
@@ -60,6 +86,6 @@ public final class VoxyTuningPolicy {
         if (cpuBound) {
             base = Math.max(1, base / 2);
         }
-        return new VoxySettings(srd, Math.min(base, cap), true);
+        return new VoxySettings(srd, Math.max(1, Math.min(base, cap)), true);
     }
 }

@@ -298,11 +298,12 @@ public final class RiftClientManager {
         if (!RiftConfig.ENABLE_VOXY_TUNING.get() || !voxy.isAvailable()) return;
         boolean cpuBound = lastResult != null && lastResult.cpuBound();
         int cores = hardware != null ? hardware.cpuThreads : Runtime.getRuntime().availableProcessors();
+        int ramMb = hardware != null ? hardware.systemRamMb : 0; // 0 = unknown -> preset doesn't cap
         voxy.apply(VoxyTuningPolicy.compute(
                 dhGuard.sessionMode(), cores, cpuBound,
                 RiftConfig.VOXY_RENDER_DISTANCE_CHUNKS.get(),
                 RiftConfig.VOXY_REMOTE_CPU_OFF.get(),
-                RiftConfig.VOXY_MAX_THREADS.get()));
+                RiftConfig.VOXY_MAX_THREADS.get(), ramMb));
     }
 
     private void forceAvailability(GraphicsSettings s) {
