@@ -26,7 +26,10 @@ public final class RiftConfig {
 
     public static final ForgeConfigSpec.BooleanValue ENABLE_VOXY_TUNING;
     public static final ForgeConfigSpec.IntValue VOXY_RENDER_DISTANCE_CHUNKS;
+    public static final ForgeConfigSpec.IntValue VOXY_HOST_RENDER_DISTANCE_CHUNKS;
+    public static final ForgeConfigSpec.IntValue VOXY_GUEST_RENDER_DISTANCE_CHUNKS;
     public static final ForgeConfigSpec.BooleanValue VOXY_REMOTE_CPU_OFF;
+    public static final ForgeConfigSpec.BooleanValue VOXY_HOST_INGEST_OFF;
     public static final ForgeConfigSpec.IntValue VOXY_MAX_THREADS;
 
     public static final ForgeConfigSpec.BooleanValue DH_GUARD;
@@ -95,13 +98,33 @@ public final class RiftConfig {
                         "worker threads from the benchmark instead of Voxy's cores*2/1.5 default.")
                 .define("enableVoxyTuning", true);
         VOXY_RENDER_DISTANCE_CHUNKS = b.comment(
-                        "Voxy render distance to hold in EVERY session mode, in chunks.",
+                        "Voxy render distance in SINGLEPLAYER, in chunks.",
                         "Never lowered by the adaptive optimizer.")
                 .defineInRange("voxyRenderDistanceChunks", 256, 32, 2048);
+        VOXY_HOST_RENDER_DISTANCE_CHUNKS = b.comment(
+                        "Voxy render distance when HOSTING - the owner's local/LAN client of a",
+                        "dedicated or open-to-LAN server, in chunks. The 'I have the beefy machine,",
+                        "render everything' horizon; needs matching Chunky/Chunksmith pregen and a",
+                        "large geometry buffer. WARNING: RAM/VRAM scale with this - 2048 is huge",
+                        "(~32k blocks) and largely aspirational without massive pregen.")
+                .defineInRange("voxyHostRenderDistanceChunks", 2048, 32, 2048);
+        VOXY_GUEST_RENDER_DISTANCE_CHUNKS = b.comment(
+                        "Voxy render distance for a REMOTE multiplayer guest (not the host), in",
+                        "chunks. Kept small so guests stay light; with voxyRemoteCpuOff they also",
+                        "build no LODs (they still render whatever the server streams).")
+                .defineInRange("voxyGuestRenderDistanceChunks", 32, 32, 256);
         VOXY_REMOTE_CPU_OFF = b.comment(
                         "On a remote multiplayer client (not the host), stop Voxy from building",
                         "LODs entirely (ingest off, 1 worker). Existing LODs still render.")
                 .define("voxyRemoteCpuOff", true);
+        VOXY_HOST_INGEST_OFF = b.comment(
+                        "When HOSTING, make the client render-only: it renders/meshes the LOD",
+                        "horizon (threads kept for the big host distance) but does NOT ingest world",
+                        "chunks into new LODs itself - the dedicated server's Chunky pregen + VSS",
+                        "generate and stream the LODs to it. Lifts LOD generation off the playing",
+                        "client (paced on the server) while the far view stays. Set false to have",
+                        "the host also build LODs locally as it explores un-pregenerated areas.")
+                .define("voxyHostIngestOff", true);
         VOXY_MAX_THREADS = b.comment(
                         "Hard cap for Voxy worker threads. 0 = automatic (cores / 2).")
                 .defineInRange("voxyMaxThreads", 0, 0, 64);

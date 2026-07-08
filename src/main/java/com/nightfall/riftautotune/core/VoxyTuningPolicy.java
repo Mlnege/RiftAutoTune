@@ -58,6 +58,9 @@ public final class VoxyTuningPolicy {
     }
 
     /**
+     * Legacy single-distance form (kept for the unit tests and any caller that does not
+     * distinguish host from guest): the same render distance is used in every mode.
+     *
      * @param pinnedRenderDistanceChunks render distance to hold in ALL modes (chunks, e.g. 256);
      *                                   the RAM preset may cap it on smaller machines
      * @param remoteCpuOff               when true, a remote-multiplayer client builds no LODs
@@ -67,14 +70,44 @@ public final class VoxyTuningPolicy {
     public static VoxySettings compute(SessionMode mode, int cpuThreads, boolean cpuBound,
                                        int pinnedRenderDistanceChunks, boolean remoteCpuOff,
                                        int maxThreadsCap, int systemRamMb) {
-        int distance = Math.min(pinnedRenderDistanceChunks, ramDistanceCapChunks(systemRamMb));
+        return compute(mode, cpuThreads, cpuBound,
+                pinnedRenderDistanceChunks, pinnedRenderDistanceChunks, pinnedRenderDistanceChunks,
+                remoteCpuOff, false, maxThreadsCap, systemRamMb);
+    }
+
+    /**
+     * Per-mode render distance so a dedicated-server HOST (the owner's LAN/local client) can hold a
+     * large horizon while REMOTE guests drop to a tiny one - and, with {@code remoteCpuOff}, build
+     * no LODs at all (they still render whatever the server streams). SINGLEPLAYER keeps its own
+     * (RAM-reduced) distance, independent of the host horizon.
+     *
+     * @param spRenderDistanceChunks    distance in SINGLEPLAYER (chunks)
+     * @param hostRenderDistanceChunks  distance when HOSTING - the LAN/owner client (chunks)
+     * @param guestRenderDistanceChunks distance for a REMOTE_MULTIPLAYER guest (chunks)
+     * @param remoteCpuOff              when true, a remote-multiplayer client builds no LODs
+     * @param hostIngestOff             when true, the HOSTING client renders/meshes the horizon but
+     *                                  does NOT ingest world chunks - the server's Chunky pregen +
+     *                                  VSS generate and stream the LODs to it (render-only host)
+     * @param maxThreadsCap             hard cap from config; 0 = automatic (cores / 2)
+     * @param systemRamMb               total system RAM; drives the small-machine preset
+     */
+    public static VoxySettings compute(SessionMode mode, int cpuThreads, boolean cpuBound,
+                                       int spRenderDistanceChunks, int hostRenderDistanceChunks,
+                                       int guestRenderDistanceChunks, boolean remoteCpuOff,
+                                       boolean hostIngestOff, int maxThreadsCap, int systemRamMb) {
+        int wanted = switch (mode) {
+            case SINGLEPLAYER -> spRenderDistanceChunks;
+            case HOSTING -> hostRenderDistanceChunks;           // dedicated/LAN host: big horizon
+            case REMOTE_MULTIPLAYER -> guestRenderDistanceChunks; // remote guest: tiny horizon
+        };
+        int distance = Math.min(wanted, ramDistanceCapChunks(systemRamMb));
         float srd = chunksToSections(distance);
         int cores = Math.max(1, cpuThreads);
         int cap = maxThreadsCap > 0 ? maxThreadsCap : Math.max(1, cores / 2);
         cap = Math.min(cap, ramThreadCap(systemRamMb));
 
         if (mode == SessionMode.REMOTE_MULTIPLAYER && remoteCpuOff) {
-            // Not the host: render existing LODs but never spend CPU building new ones.
+            // Not the host: render existing/streamed LODs but never spend CPU building new ones.
             return new VoxySettings(srd, 1, false);
         }
 
@@ -86,6 +119,10 @@ public final class VoxyTuningPolicy {
         if (cpuBound) {
             base = Math.max(1, base / 2);
         }
-        return new VoxySettings(srd, Math.max(1, Math.min(base, cap)), true);
+        // Host render-only: the dedicated server (Chunky pregen + VSS) generates and streams the
+        // LODs, so the HOSTING client renders/meshes them (threads kept for the big horizon) but
+        // does NOT ingest world chunks into new LODs itself. Any other mode keeps ingest on.
+        boolean ingest = !(mode == SessionMode.HOSTING && hostIngestOff);
+        return new VoxySettings(srd, Math.max(1, Math.min(base, cap)), ingest);
     }
 }

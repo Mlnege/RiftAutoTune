@@ -301,8 +301,11 @@ public final class RiftClientManager {
         int ramMb = hardware != null ? hardware.systemRamMb : 0; // 0 = unknown -> preset doesn't cap
         voxy.apply(VoxyTuningPolicy.compute(
                 dhGuard.sessionMode(), cores, cpuBound,
-                RiftConfig.VOXY_RENDER_DISTANCE_CHUNKS.get(),
+                RiftConfig.VOXY_RENDER_DISTANCE_CHUNKS.get(),        // singleplayer
+                RiftConfig.VOXY_HOST_RENDER_DISTANCE_CHUNKS.get(),   // hosting (LAN/owner)
+                RiftConfig.VOXY_GUEST_RENDER_DISTANCE_CHUNKS.get(),  // remote guest
                 RiftConfig.VOXY_REMOTE_CPU_OFF.get(),
+                RiftConfig.VOXY_HOST_INGEST_OFF.get(),               // host renders but doesn't ingest
                 RiftConfig.VOXY_MAX_THREADS.get(), ramMb));
     }
 

@@ -191,10 +191,45 @@ public final class DhSessionGuard {
         // false-detected REMOTE_MULTIPLAYER and throttled DH to 1 thread. getCurrentServer() is
         // non-null only for a real remote/LAN server connection.
         try {
-            if (mc.getCurrentServer() != null) return SessionMode.REMOTE_MULTIPLAYER;
+            var server = mc.getCurrentServer();
+            if (server != null) {
+                // The owner of a dedicated (or open-to-LAN) server connects over localhost/LAN, so
+                // treat that client as the HOST: it gets the big host horizon and keeps building
+                // LODs instead of being throttled like a remote guest. Real (WAN) guests stay
+                // REMOTE_MULTIPLAYER. Heuristic: a guest on the SAME LAN would also read as host -
+                // the pack owner accepted that when choosing local/LAN auto-detect.
+                if (isLocalOrLanAddress(server.ip)) return SessionMode.HOSTING;
+                return SessionMode.REMOTE_MULTIPLAYER;
+            }
         } catch (Throwable ignored) {
         }
         return SessionMode.SINGLEPLAYER;
+    }
+
+    /** True for localhost / RFC-1918 private LAN addresses - the owner-hosted-server heuristic. */
+    static boolean isLocalOrLanAddress(String ip) {
+        if (ip == null) return false;
+        String host = ip.trim().toLowerCase(java.util.Locale.ROOT);
+        // strip a trailing :port for plain IPv4/hostname (leave bracketed IPv6 untouched)
+        if (!host.startsWith("[") && host.chars().filter(c -> c == ':').count() == 1) {
+            host = host.substring(0, host.lastIndexOf(':'));
+        }
+        if (host.equals("localhost") || host.equals("::1")
+                || host.startsWith("127.") || host.endsWith(".local")) {
+            return true;
+        }
+        if (host.startsWith("192.168.") || host.startsWith("10.")) return true;
+        if (host.startsWith("172.")) { // 172.16.0.0 - 172.31.255.255
+            String[] parts = host.split("\\.");
+            if (parts.length >= 2) {
+                try {
+                    int second = Integer.parseInt(parts[1]);
+                    return second >= 16 && second <= 31;
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return false;
     }
 
     private static void chat(Minecraft mc, Component message) {
