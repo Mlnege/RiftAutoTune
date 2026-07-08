@@ -15,6 +15,7 @@ import com.nightfall.riftautotune.core.GraphicsSettings;
 import com.nightfall.riftautotune.core.HardwareProfile;
 import com.nightfall.riftautotune.core.HardwareTier;
 import com.nightfall.riftautotune.core.Knob;
+import com.nightfall.riftautotune.core.MemoryBudgetPolicy;
 import com.nightfall.riftautotune.core.QualityLadder;
 import com.nightfall.riftautotune.core.TuningContext;
 import com.nightfall.riftautotune.util.ModCompat;
@@ -44,6 +45,7 @@ public final class RiftClientManager {
     private final SuperResolutionAdapter superRes = new SuperResolutionAdapter();
     private final VoxyAdapter voxy = new VoxyAdapter();
     private final DhSessionGuard dhGuard = new DhSessionGuard();
+    private final MemoryTelemetry memoryTelemetry = new MemoryTelemetry();
     private final com.nightfall.riftautotune.adapter.C2meAdapter c2me =
             new com.nightfall.riftautotune.adapter.C2meAdapter();
     private volatile int c2meLastWritten = -1;
@@ -65,6 +67,9 @@ public final class RiftClientManager {
         RiftLog.DEBUG = RiftConfig.DEBUG_LOGGING.get();
         RiftLog.info("Client setup complete. Target band {}-{} FPS.",
                 RiftConfig.TARGET_FPS_MIN.get(), RiftConfig.TARGET_FPS_MAX.get());
+        RiftLog.info("Heap budget {} MB -> knob ceilings: {}",
+                Runtime.getRuntime().maxMemory() / (1024L * 1024L),
+                MemoryBudgetPolicy.forCurrentRuntime().describe());
     }
 
     // -------------------------------------------------------------- events
@@ -92,6 +97,9 @@ public final class RiftClientManager {
     public void onRenderTick(TickEvent.RenderTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft mc = Minecraft.getInstance();
+
+        // Memory telemetry ticks in every state (menu, benchmark, play) - heap matters always.
+        memoryTelemetry.onRenderFrame();
 
         // Drive the benchmark state machine.
         if (benchmark.isRunning()) {
@@ -145,6 +153,7 @@ public final class RiftClientManager {
                 ? QualityLadder.presetFor(forcedTier)
                 : QualityLadder.potatoBaseline(shadersAvailable);
         forceAvailability(reference);
+        reference = budgetClamp(reference); // forced-tier presets may exceed the heap budget
         current = reference;
         tuningInProgress = true;
 
@@ -170,7 +179,7 @@ public final class RiftClientManager {
             TuningContext ctx = new TuningContext(hardware, result,
                     RiftConfig.TARGET_FPS_MIN.get(), RiftConfig.TARGET_FPS_MAX.get(),
                     RiftConfig.ONE_PCT_FLOOR.get(), RiftConfig.QUALITY_BIAS.get(),
-                    shadersAvailable, dhAvailable, vsync);
+                    shadersAvailable, dhAvailable, vsync, MemoryBudgetPolicy.forCurrentRuntime());
             return AutoTuneOptimizer.optimize(ctx);
         }).thenAccept(settings -> RiftExecutor.onRenderThread(() ->
                 presentAndApply(settings, result, false)));
@@ -194,7 +203,7 @@ public final class RiftClientManager {
         TuningContext ctx = new TuningContext(hardware, referenceResult,
                 RiftConfig.TARGET_FPS_MIN.get(), RiftConfig.TARGET_FPS_MAX.get(),
                 RiftConfig.ONE_PCT_FLOOR.get(), RiftConfig.QUALITY_BIAS.get(),
-                shadersAvailable, dhAvailable, readVsync());
+                shadersAvailable, dhAvailable, readVsync(), MemoryBudgetPolicy.forCurrentRuntime());
         CostModel cm = new CostModel(ctx);
         double fpsWith = cm.predictFps(settings);
         double fpsWithout = cm.predictFps(withoutShaders);
@@ -217,7 +226,7 @@ public final class RiftClientManager {
         TuningContext ctx = new TuningContext(hardware, lastResult,
                 RiftConfig.TARGET_FPS_MIN.get(), RiftConfig.TARGET_FPS_MAX.get(),
                 RiftConfig.ONE_PCT_FLOOR.get(), RiftConfig.QUALITY_BIAS.get(),
-                shadersAvailable, dhAvailable, readVsync());
+                shadersAvailable, dhAvailable, readVsync(), MemoryBudgetPolicy.forCurrentRuntime());
         CostModel cm = new CostModel(ctx);
         double fpsWith = cm.predictFps(withShaders);
         double fpsWithout = cm.predictFps(withoutShaders);
@@ -229,7 +238,7 @@ public final class RiftClientManager {
     }
 
     private void applyRuntimeChoice(GraphicsSettings settings) {
-        GraphicsSettings clamped = dhGuard.clamp(settings);
+        GraphicsSettings clamped = budgetClamp(dhGuard.clamp(settings));
         current = clamped;
         RiftExecutor.onRenderThread(() -> adapters.applyAll(clamped, true));
     }
@@ -252,7 +261,8 @@ public final class RiftClientManager {
     }
 
     private void finishApply(GraphicsSettings settings, BenchmarkResult result, boolean isRestore) {
-        settings = dhGuard.clamp(settings);
+        // Budget clamp last so a restored profile from a bigger-heap session can't overshoot.
+        settings = budgetClamp(dhGuard.clamp(settings));
         current = settings;
         adapters.applyAll(settings, true);
         if (isRestore) {
@@ -281,7 +291,7 @@ public final class RiftClientManager {
     }
 
     private void applyResolved(GraphicsSettings settings) {
-        GraphicsSettings clamped = pinShaders(dhGuard.clamp(settings));
+        GraphicsSettings clamped = pinShaders(budgetClamp(dhGuard.clamp(settings)));
         current = clamped;
         adapters.applyAll(clamped);
         applyVoxy();
@@ -299,11 +309,14 @@ public final class RiftClientManager {
         boolean cpuBound = lastResult != null && lastResult.cpuBound();
         int cores = hardware != null ? hardware.cpuThreads : Runtime.getRuntime().availableProcessors();
         int ramMb = hardware != null ? hardware.systemRamMb : 0; // 0 = unknown -> preset doesn't cap
+        // Heap budget also bounds the LOD horizon: Voxy geometry is largely off-heap, but its
+        // heap-side section tracking scales with visible area (the 8 GB profile caps at 768 chunks).
+        int lodCap = MemoryBudgetPolicy.forCurrentRuntime().maxVoxyLodDistance();
         voxy.apply(VoxyTuningPolicy.compute(
                 dhGuard.sessionMode(), cores, cpuBound,
-                RiftConfig.VOXY_RENDER_DISTANCE_CHUNKS.get(),        // singleplayer
-                RiftConfig.VOXY_HOST_RENDER_DISTANCE_CHUNKS.get(),   // hosting (LAN/owner)
-                RiftConfig.VOXY_GUEST_RENDER_DISTANCE_CHUNKS.get(),  // remote guest
+                Math.min(RiftConfig.VOXY_RENDER_DISTANCE_CHUNKS.get(), lodCap),       // singleplayer
+                Math.min(RiftConfig.VOXY_HOST_RENDER_DISTANCE_CHUNKS.get(), lodCap),  // hosting (LAN/owner)
+                Math.min(RiftConfig.VOXY_GUEST_RENDER_DISTANCE_CHUNKS.get(), lodCap), // remote guest
                 RiftConfig.VOXY_REMOTE_CPU_OFF.get(),
                 RiftConfig.VOXY_HOST_INGEST_OFF.get(),               // host renders but doesn't ingest
                 RiftConfig.VOXY_MAX_THREADS.get(), ramMb));
@@ -312,6 +325,15 @@ public final class RiftClientManager {
     private void forceAvailability(GraphicsSettings s) {
         if (!shadersAvailable) s.set(Knob.SHADERS, 0);
         if (!dhAvailable) s.set(Knob.DH_LOD_DISTANCE, 0);
+    }
+
+    /**
+     * Heap-budget ceilings ({@link MemoryBudgetPolicy}) on every settings apply path, so no
+     * route - optimizer, adaptive loop, restore, forced profile - can exceed what the JVM heap
+     * budget carries. FPS never argues a knob past this.
+     */
+    private GraphicsSettings budgetClamp(GraphicsSettings s) {
+        return s == null ? null : MemoryBudgetPolicy.forCurrentRuntime().clamp(s);
     }
 
     private boolean readVsync() {
@@ -357,6 +379,7 @@ public final class RiftClientManager {
             if (hardware == null) hardware = HardwareDetector.detect();
             GraphicsSettings preset = QualityLadder.presetFor(tier);
             forceAvailability(preset);
+            preset = budgetClamp(preset); // even a forced EXTREME obeys the heap budget
             current = preset;
             adapters.applyAll(preset, true);
             ResultsHud.showFor(8000);
@@ -384,7 +407,13 @@ public final class RiftClientManager {
         out.add("C2ME: " + (c2me.isAvailable()
                 ? (c2meLastWritten > 0 ? c2meLastWritten + " threads (next launch)" : "installed, not yet tuned")
                 : "absent"));
+        out.add("Memory budget: " + MemoryBudgetPolicy.forCurrentRuntime().describe());
         return out;
+    }
+
+    /** Snapshot for /riftautotune memory - the same data the periodic telemetry log line carries. */
+    public List<String> memoryLines() {
+        return memoryTelemetry.snapshotLines();
     }
 
     /** /riftautotune dh &lt;on|off|auto|ignore&gt; - manual override for the DH session guard. */

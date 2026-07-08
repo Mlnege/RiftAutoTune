@@ -14,21 +14,33 @@ public final class TuningContext {
     public final boolean shadersAvailable;
     public final boolean dhAvailable;
     public final boolean vsync;
+    /** Heap-budget knob ceilings; never null (defaults to uncapped). */
+    public final MemoryBudgetPolicy.BudgetCaps budgetCaps;
 
     public final int effectiveLow;
     public final int effectiveHigh;
     public final int onePctFloor;
 
+    /** Legacy form without budget caps: no heap-based knob ceilings (uncapped). */
     public TuningContext(HardwareProfile hardware, BenchmarkResult benchmark,
                          int requestedLow, int requestedHigh, int onePctFloor,
                          double qualityBias, boolean shadersAvailable, boolean dhAvailable,
                          boolean vsync) {
+        this(hardware, benchmark, requestedLow, requestedHigh, onePctFloor, qualityBias,
+                shadersAvailable, dhAvailable, vsync, MemoryBudgetPolicy.uncapped());
+    }
+
+    public TuningContext(HardwareProfile hardware, BenchmarkResult benchmark,
+                         int requestedLow, int requestedHigh, int onePctFloor,
+                         double qualityBias, boolean shadersAvailable, boolean dhAvailable,
+                         boolean vsync, MemoryBudgetPolicy.BudgetCaps budgetCaps) {
         this.hardware = hardware;
         this.benchmark = benchmark;
         this.qualityBias = clamp01(qualityBias);
         this.shadersAvailable = shadersAvailable;
         this.dhAvailable = dhAvailable;
         this.vsync = vsync;
+        this.budgetCaps = budgetCaps != null ? budgetCaps : MemoryBudgetPolicy.uncapped();
 
         int refresh = hardware != null ? hardware.refreshRate : 60;
 

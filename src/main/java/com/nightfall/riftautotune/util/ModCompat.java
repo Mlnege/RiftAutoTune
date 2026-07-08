@@ -11,6 +11,8 @@ public final class ModCompat {
     public static final String SUPER_RESOLUTION = "super_resolution";
     public static final String CTM = "ctm";
     public static final String FUSION = "fusion";
+    /** Voxy loads through Sinytra Connector, which surfaces fabric mods in the Forge ModList. */
+    public static final String VOXY = "voxy";
 
     private ModCompat() {}
 
@@ -36,5 +38,9 @@ public final class ModCompat {
 
     public static boolean superResolutionAvailable() {
         return loaded(SUPER_RESOLUTION);
+    }
+
+    public static boolean voxyAvailable() {
+        return loaded(VOXY);
     }
 }

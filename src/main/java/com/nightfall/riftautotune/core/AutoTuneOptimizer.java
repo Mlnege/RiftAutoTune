@@ -36,6 +36,8 @@ public final class AutoTuneOptimizer {
     public GraphicsSettings optimize() {
         GraphicsSettings s = QualityLadder.potatoBaseline(ctx.shadersAvailable);
         forceFeatureAvailability(s);
+        // Heap-budget ceilings apply to the seed too (defensive; the baseline is already low).
+        s = ctx.budgetCaps.clamp(s);
 
         // Quality aim inside the band. Higher bias => aim nearer the low edge => more quality kept.
         double aim = ctx.effectiveLow + (1.0 - ctx.qualityBias) * (ctx.effectiveHigh - ctx.effectiveLow);
@@ -93,7 +95,9 @@ public final class AutoTuneOptimizer {
             double beforeVis = model.visualScore(s);
 
             for (Knob k : Knob.values()) {
-                if (s.get(k) >= k.maxLevel()) continue;
+                // Ceiling = knob's own max, lowered by the heap-budget caps (memory headroom
+                // is invisible to the FPS signal, so it bounds the search space instead).
+                if (s.get(k) >= ctx.budgetCaps.maxLevelFor(k)) continue;
                 if (k.isShaderMaster() && !ctx.shadersAvailable) continue;
                 if (k.isDhMaster() && !ctx.dhAvailable) continue;
 

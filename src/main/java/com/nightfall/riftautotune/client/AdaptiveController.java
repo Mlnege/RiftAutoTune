@@ -6,6 +6,7 @@ import com.nightfall.riftautotune.core.CostModel;
 import com.nightfall.riftautotune.core.GraphicsSettings;
 import com.nightfall.riftautotune.core.HardwareProfile;
 import com.nightfall.riftautotune.core.Knob;
+import com.nightfall.riftautotune.core.MemoryBudgetPolicy;
 import com.nightfall.riftautotune.core.TuningContext;
 import com.nightfall.riftautotune.util.CpuLoad;
 import com.nightfall.riftautotune.util.RiftLog;
@@ -158,7 +159,9 @@ public final class AdaptiveController {
                 double ratio = saved / Math.max(visLost, 1e-6);
                 if (ratio > bestRatio) { bestRatio = ratio; best = k; }
             } else {
-                if (lvl >= k.maxLevel()) continue;
+                // Upward steps stop at the heap-budget ceiling (<= the knob's own max): FPS
+                // headroom never justifies exceeding what the JVM heap budget can carry.
+                if (lvl >= cm.context().budgetCaps.maxLevelFor(k)) continue;
                 if (k.isShaderMaster() && !shadersAvailable) continue;
                 if (k.isDhMaster() && !dhAvailable) continue;
                 GraphicsSettings cand = current.copy().set(k, lvl + 1);
@@ -188,7 +191,7 @@ public final class AdaptiveController {
         TuningContext ctx = new TuningContext(hardware, synthetic,
                 RiftConfig.TARGET_FPS_MIN.get(), RiftConfig.TARGET_FPS_MAX.get(),
                 RiftConfig.ONE_PCT_FLOOR.get(), RiftConfig.QUALITY_BIAS.get(),
-                shadersAvailable, dhAvailable, false);
+                shadersAvailable, dhAvailable, false, MemoryBudgetPolicy.forCurrentRuntime());
         return new CostModel(ctx);
     }
 }

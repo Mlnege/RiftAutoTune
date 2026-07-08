@@ -149,21 +149,30 @@ public final class OculusAdapter implements ConfigAdapter {
         try {
             ShaderPackMetadata metadata = readShaderPackMetadata(pack);
             String profile = ShaderProfilePolicy.profileFor(s);
-            // Rank-based resolution: matches Kappa's mixed-case Low..Extreme ladder and rejects
-            // pseudo-profiles (Bliss tonemap/version entries), which exact-name matching selected
-            // by accident before.
-            String packProfile = ShaderProfilePolicy.resolvePackProfile(profile, metadata.profiles().keySet());
 
             Map<String, String> desired = new LinkedHashMap<>();
-            if (packProfile != null) {
-                desired.put("profile", packProfile);
-                Map<String, String> profileOptions = metadata.profiles().get(packProfile);
-                if (profileOptions != null) {
-                    desired.putAll(profileOptions);
+            ShaderOptionTables.PackFamily family = ShaderOptionTables.PackFamily.detect(pack);
+            switch (family) {
+                // Hand-tuned direct tables: drive the pack's real option keys per tier and skip the
+                // profile line. The <pack>.txt loader does not reliably honour a `profile=` line, and
+                // the profile parser only captures KEY=VALUE pairs - it drops boolean feature toggles
+                // (Photon's SHADOW_COLOR/GTAO/VL/... have no `=`), which is why Photon/Solas produced a
+                // near-empty override and ran at default before. The table writes them explicitly.
+                case BLISS -> desired.putAll(ShaderOptionTables.blissOptions(profile));
+                case SOLAS -> desired.putAll(ShaderOptionTables.solasOptions(profile));
+                case PHOTON -> desired.putAll(ShaderOptionTables.photonOptions(profile));
+                default -> {
+                    // Other packs (Complementary/Kappa/...): rank-match onto their own profile ladder,
+                    // rejecting pseudo-profiles (tonemap/version labels).
+                    String packProfile = ShaderProfilePolicy.resolvePackProfile(profile, metadata.profiles().keySet());
+                    if (packProfile != null) {
+                        desired.put("profile", packProfile);
+                        Map<String, String> profileOptions = metadata.profiles().get(packProfile);
+                        if (profileOptions != null) {
+                            desired.putAll(profileOptions);
+                        }
+                    }
                 }
-            } else if (ShaderOptionTables.PackFamily.detect(pack) == ShaderOptionTables.PackFamily.BLISS) {
-                // Bliss exposes no quality profiles at all - drive its real option keys directly.
-                desired.putAll(ShaderOptionTables.blissOptions(profile));
             }
 
             desired.put("shadowMapResolution", Integer.toString(s.value(Knob.SHADER_SHADOW_RES)));

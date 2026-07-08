@@ -38,6 +38,12 @@ minecraft {
     }
 }
 
+// Sources use UTF-8 (em dashes, arrows in comments). Pin it so the build is stable
+// regardless of the host's default platform encoding (e.g. Windows CP949).
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
